@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GEX Calc">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>GEX Calculator + Grafici</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --green: #3fb950; --red: #f85149; --accent: #58a6ff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, Roboto, "Segoe UI", sans-serif;
+    padding: 16px; padding-bottom: 48px; max-width: 480px; margin: 0 auto;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin: 12px 0 4px; }
+  input, textarea {
+    width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font-size: 15px;
+  }
+  textarea { min-height: 150px; font-family: monospace; font-size: 13px; }
+  button.primary {
+    width: 100%; margin-top: 18px; padding: 14px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff; font-size: 16px; font-weight: 600;
+  }
+  button.primary:active { opacity: 0.85; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; margin-top: 18px;
+  }
+  .row { display: flex; justify-content: space-between; padding: 7px 0; font-size: 14px; }
+  .row span:first-child { color: var(--muted); }
+  .regime { font-weight: 700; font-size: 16px; }
+  .regime.pos { color: var(--green); }
+  .regime.neg { color: var(--red); }
+  ul.notes { padding-left: 18px; font-size: 13px; margin: 10px 0 0; }
+  ul.notes li { margin-bottom: 6px; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  #error { color: var(--red); font-size: 13px; margin-top: 12px; display: none; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+  th, td { text-align: right; padding: 5px; border-bottom: 1px solid var(--border); }
+  th:first-child, td:first-child { text-align: left; }
+  .install-banner {
+    background: var(--card); border: 1px solid var(--accent); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; margin-bottom: 16px; display: none;
+  }
+  .warning {
+    background: rgba(248, 81, 73, 0.12); border: 1px solid var(--red); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; margin-top: 12px;
+  }
+  .optional-row { display: flex; gap: 8px; }
+  .optional-row input { width: 100%; }
+  .chtf { padding: 7px 11px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; }
+  .chtf.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tabs { overflow-x: auto; }
+  .tabs .tab { flex: 1 0 auto !important; padding: 10px 12px !important; font-size: 13px !important; white-space: nowrap; }
+  .btn2 { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; color:#0d1117; }
+  .pill.ok { background: var(--green); } .pill.ko { background: var(--red); } .pill.mid { background: #e0a93b; } .pill.wait { background: var(--muted); }
+  .section-title { font-weight: 700; margin-top: 14px; margin-bottom: 6px; }
+  .chart-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+  .chart-stat {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 10px;
+  }
+  .chart-stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .chart-stat-value { font-size: 15px; font-weight: 700; margin-top: 2px; }
+  .chart-stat-value.pos { color: var(--green); }
+  .chart-stat-value.neg { color: var(--red); }
+  .chart-stat-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<div id="installBanner" class="install-banner">
+  📲 Per usarla come app: menu del browser → "Aggiungi a schermata Home"
+</div>
+
+<h1>GEX Calculator</h1>
+<div class="sub">Regime di mercato, bias direzionale e Delta Exposure dai flussi dei market maker. Calcolo interamente sul telefono, funziona anche offline. Solo supporto informativo — non un segnale di trading garantito.</div>
+
+<div class="tabs" style="display:flex;gap:8px;margin-bottom:16px;">
+  <div id="tab-manual" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:14px;" onclick="switchTab('manual')">Manuale</div>
+  <div id="tab-auto" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('auto')">Automatico</div>
+  <div id="tab-charts" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('charts')">Grafici</div>
+  <div id="tab-journal" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('journal')">Diario</div>
+  <div id="tab-watch" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('watch')">Watchlist</div>
+</div>
+
+<div id="panel-manual">
+<label>Ticker</label>
+<input id="ticker" placeholder="es. AAPL">
+
+<label>Prezzo spot attuale</label>
+<input id="spot" type="number" inputmode="decimal" step="0.01" placeholder="es. 227.50">
+
+<div class="card" style="margin-top:0;">
+  <div class="section-title" style="margin-top:0;">📷 Importa da screenshot di Barchart</div>
+  <div class="hint" style="margin-top:0;">Fotografa (screenshot) la tabella della scadenza che segui: Strike, Open Interest e IV devono essere visibili. Puoi caricare più screenshot scorrendo la tabella.</div>
+  <label for="bcFile" class="btn2" style="display:block;text-align:center;margin-top:10px;">+ Scegli screenshot</label>
+  <input type="file" id="bcFile" accept="image/*" multiple style="position:absolute;left:-9999px;opacity:0;">
+  <div id="bcFiles" class="hint"></div>
+  <label>Scadenza (opzionale, AAAA-MM-GG: se vuota la leggo dallo screenshot)</label>
+  <input id="bcExp" placeholder="es. 2026-11-20">
+  <label style="display:flex;gap:8px;align-items:center;margin-top:10px;"><input type="checkbox" id="bcAppend" style="width:auto;"> Aggiungi alle righe già presenti (per più scadenze)</label>
+  <button class="primary" id="bcGo" onclick="parseBarchart()" style="margin-top:12px;" disabled>Leggi screenshot</button>
+  <div id="bcStatus" class="hint" style="margin-top:8px;"></div>
+</div>
+
+<label>Option chain (CSV: strike,tipo,open_interest,iv,giorni_scadenza,volume,last,mid)</label>
+<textarea id="csv" placeholder="225,call,1200,0.32,14,340,4.35,4.20
+225,put,900,0.34,14,1200,3.10,3.45
+230,call,800,0.30,14,50,2.80,2.85
+230,put,1100,0.33,14,90,5.60,5.50"></textarea>
+<div class="hint">volume, last e mid sono opzionali (colonne 6-7-8). Last e Mid sono le colonne "Latest" e "Mid" già visibili su Barchart — se le aggiungi, l'app stima se il volume anomalo è più probabile lato acquisto o lato vendita (tick rule: segnale probabilistico, non una conferma).</div>
+
+<label>PCR — override opzionale (dai totali di Barchart, più affidabile della somma sui pochi strike inseriti)</label>
+<div class="optional-row">
+  <input id="putOiTotal" type="number" inputmode="numeric" placeholder="Put OI Total">
+  <input id="callOiTotal" type="number" inputmode="numeric" placeholder="Call OI Total">
+</div>
+<div class="hint">Lascia vuoto per calcolarlo dagli strike sopra (meno preciso se ne hai inseriti pochi)</div>
+
+<button class="primary" onclick="calcola()">Calcola</button>
+</div>
+
+<div id="panel-auto" style="display:none;">
+  <label>Indirizzo del servizio automatico (Render, Cloudflare o altro)</label>
+  <input id="workerUrl" value="https://opzioni-render.onrender.com" placeholder="es. https://opzioni-render.onrender.com">
+  <div class="hint">Puoi cambiarlo se serve, resta salvato nel browser</div>
+
+  <label>Ticker</label>
+  <input id="autoTicker" placeholder="es. AAPL">
+
+  <label>Scadenza (opzionale, formato AAAA-MM-GG)</label>
+  <input id="autoExpiration" placeholder="es. 2026-09-25">
+  <div class="hint">Lascia vuoto per usare la prima scadenza disponibile</div>
+
+  <button class="primary" onclick="fetchAuto()">Scarica dati e calcola</button>
+  <div id="autoStatus" class="hint" style="margin-top:8px;"></div>
+
+  <button class="primary" style="background:var(--card);border:1px solid var(--accent);margin-top:10px;" onclick="verifyIndependent()">🔍 Verifica con fonte indipendente</button>
+  <div class="hint">Usa FlashAlpha (max 5 volte al giorno, piano gratuito) per confrontare i livelli con una fonte diversa da Eulerpool. Usalo solo quando vuoi una controprova, non ad ogni calcolo.</div>
+  <div id="verifyResult"></div>
+</div>
+
+<div id="panel-charts" style="display:none;">
+  <div class="hint" id="chGexInfo" style="margin-top:0;">Calcola prima il GEX (scheda Manuale o Automatico): i livelli vengono usati in automatico nell'analisi dei grafici.</div>
+
+  
+  <div class="section-title" style="margin-top:6px;">Grafico</div>
+  <div id="chTfBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+    <button class="chtf" data-tf="5m">5m</button><button class="chtf" data-tf="15m">15m</button><button class="chtf" data-tf="30m">30m</button>
+    <button class="chtf" data-tf="1h">1h</button><button class="chtf" data-tf="1D">1D</button><button class="chtf" data-tf="1W">1W</button>
+    <button class="chtf" id="chLoad" style="margin-left:auto;border-color:var(--accent);color:var(--accent);">⟳ Carica</button>
+  </div>
+  <div id="chChart" style="width:100%;height:340px;border:1px solid var(--border);border-radius:10px;overflow:hidden;"></div>
+  <div class="hint" id="chChartInfo">Inserisci l'asset qui sotto e premi Carica. Le linee tratteggiate sono i livelli GEX calcolati.</div>
+
+  <div style="display:flex;gap:8px;margin:10px 0;">
+    <button class="btn2" style="flex:1;" onclick="calcConfluence()">⚖️ Confluenza</button>
+    <button class="btn2" style="flex:1;" onclick="copyLevels()">📋 Copia livelli</button>
+  </div>
+  <div id="chConf"></div>
+
+  <label>Asset</label>
+  <input id="chAsset" placeholder="es. AMZN">
+
+  <label>Variazione NQ in % (si compila da sola, puoi correggerla)</label>
+  <div class="optional-row"><input id="chNq" type="number" inputmode="decimal" step="0.01" placeholder="es. 0.15"><button class="btn2" onclick="loadNq()" style="white-space:nowrap;">⟳ NQ auto</button></div>
+  <div class="hint" id="chNqInfo"></div>
+  <div class="hint">Piatto (±0,20%): contano al 100% le opzioni del titolo. Forte (±1%): i futures spingono verso il muro successivo.</div>
+
+  <label>Orizzonte</label>
+  <select id="chHor" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;">
+    <option>Intraday</option><option selected>Swing (giorni)</option><option>Medio periodo (settimane)</option>
+  </select>
+
+  <label>Note (opzionale)</label>
+  <input id="chNote" placeholder="es. livelli, news, indicatori visibili">
+
+  <label for="chFile" class="primary" style="display:block;text-align:center;margin-top:16px;padding:14px;border-radius:10px;border:1px dashed var(--accent);color:var(--accent);font-size:15px;font-weight:600;">+ Aggiungi screenshot dei time frame</label>
+  <input type="file" id="chFile" accept="image/*" multiple style="position:absolute;left:-9999px;opacity:0;">
+  <div id="chList"></div>
+
+  <button class="primary" id="chGo" onclick="analyzeCharts()" disabled>Analizza grafici</button>
+  <div id="chStatus" class="hint" style="margin-top:8px;"></div>
+  <div id="chResult"></div>
+</div>
+
+<div id="panel-journal" style="display:none;">
+  <div class="hint" style="margin-top:0;">Ogni analisi dei grafici viene salvata qui (solo su questo telefono). Dopo l'orizzonte scelto (Intraday ≈ 4 ore, Swing ≈ 2 giorni, Medio ≈ 10 giorni) l'app confronta con ciò che il prezzo ha fatto davvero.</div>
+  <div id="jStats"></div>
+  <button class="btn2" style="width:100%;margin:10px 0;" onclick="verifyAll(true)">🔄 Verifica ora le analisi scadute</button>
+  <div id="jStatus" class="hint"></div>
+  <div id="jList"></div>
+  <button class="btn2" style="width:100%;margin-top:14px;color:var(--red);border-color:var(--red);" onclick="clearJournal()">Svuota diario</button>
+</div>
+
+<div id="panel-watch" style="display:none;">
+  <label style="margin-top:0;">Ticker da monitorare (separati da virgola)</label>
+  <input id="wlTickers" placeholder="AMZN,GOOGL,NVDA,AAPL,MSFT">
+  <button class="primary" onclick="runWatchlist()">Aggiorna watchlist</button>
+  <div id="wlStatus" class="hint" style="margin-top:8px;"></div>
+  <div id="wlResult"></div>
+</div>
+
+<div id="error"></div>
+<div id="result"></div>
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+if (!window.matchMedia('(display-mode: standalone)').matches) {
+  document.getElementById('installBanner').style.display = 'block';
+}
+
+window.onerror = function (msg, url, line) {
+  const errEl = document.getElementById("error");
+  errEl.textContent = "Errore script (riga " + line + "): " + msg;
+  errEl.style.display = "block";
+  errEl.scrollIntoView({ behavior: "smooth", block: "center" });
+  return true;
+};
+
+function switchTab(name) {
+  ['manual', 'auto', 'charts', 'journal', 'watch'].forEach(t => {
+    const tab = document.getElementById('tab-' + t);
+    tab.style.background = t === name ? 'var(--accent)' : 'var(--card)';
+    tab.style.color = t === name ? '#fff' : 'var(--text)';
+    document.getElementById('panel-' + t).style.display = t === name ? 'block' : 'none';
+  });
+  if (name === 'charts') { refreshGexInfo(); if (document.getElementById('chNq').value === '') loadNq(); }
+  if (name === 'journal') { renderJournal(); verifyAll(false); }
+  if (name === 'watch') { const w = localStorage.getItem('gexWatch'); if (w) document.getElementById('wlTickers').value = w; else if (!document.getElementById('wlTickers').value) document.getElementById('wlTickers').value = 'AMZN,GOOGL,NVDA,AAPL,MSFT'; }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('gexWorkerUrl');
+  if (location.hostname.endsWith('onrender.com')) {
+    document.getElementById('workerUrl').value = location.origin;  // app e dati sullo stesso servizio
+  } else if (saved) {
+    document.getElementById('workerUrl').value = saved;
+  }
+  document.getElementById('chFile').addEventListener('change', onChartFiles);
+});
+
+async function fetchAuto() {
+  const statusEl = document.getElementById('autoStatus');
+  const errEl = document.getElementById('error');
+  errEl.style.display = 'none';
+  const workerUrl = document.getElementById('workerUrl').value.trim().replace(/\/$/, '');
+  const ticker = document.getElementById('autoTicker').value.trim();
+  const expiration = document.getElementById('autoExpiration').value.trim();
+
+  if (!workerUrl || !ticker) {
+    statusEl.textContent = '⚠️ Inserisci sia il Worker URL che il ticker.';
+    return;
+  }
+  localStorage.setItem('gexWorkerUrl', workerUrl);
+
+  statusEl.textContent = '⏳ Scaricando dati...';
+  try {
+    let url = `${workerUrl}/?ticker=${encodeURIComponent(ticker)}`;
+    if (expiration) url += `&expiration=${encodeURIComponent(expiration)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || 'Errore sconosciuto dal Worker');
+    if (!data.spot || !data.options || !data.options.length) {
+      throw new Error('Il Worker ha risposto ma senza dati utilizzabili (spot o opzioni mancanti). Controlla i log del Worker.');
+    }
+
+    document.getElementById('ticker').value = data.ticker || ticker;
+    document.getElementById('spot').value = data.spot;
+    document.getElementById('csv').value = data.options
+      .map(o => `${o.strike},${o.option_type},${o.open_interest},${o.implied_vol},${o.days_to_expiry}`)
+      .join('\n');
+    document.getElementById('putOiTotal').value = data.put_oi_total || '';
+    document.getElementById('callOiTotal').value = data.call_oi_total || '';
+
+    statusEl.textContent = `✅ Dati scaricati (${data.options.length} righe). Calcolo in corso...`;
+    switchTab('manual');
+    calcola();
+  } catch (e) {
+    statusEl.textContent = '';
+    errEl.textContent = 'Errore fetch automatico: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function verifyIndependent() {
+  const errEl = document.getElementById("error");
+  const verifyEl = document.getElementById("verifyResult");
+  errEl.style.display = "none";
+  const workerUrl = document.getElementById('workerUrl').value.trim().replace(/\/$/, '');
+  const ticker = document.getElementById('autoTicker').value.trim();
+  const expiration = document.getElementById('autoExpiration').value.trim();
+
+  if (!workerUrl || !ticker) {
+    verifyEl.innerHTML = '<div class="hint">⚠️ Inserisci Worker URL e ticker prima di verificare.</div>';
+    return;
+  }
+  if (!expiration) {
+    verifyEl.innerHTML = '<div class="hint">⚠️ Il piano gratuito FlashAlpha richiede sempre una scadenza specifica: compila il campo "Scadenza" sopra prima di premere Verifica, altrimenti sprechi una delle 5 chiamate giornaliere senza risultato.</div>';
+    return;
+  }
+
+  verifyEl.innerHTML = '<div class="hint">⏳ Interrogando FlashAlpha (fonte indipendente)...</div>';
+
+  try {
+    let url = `${workerUrl}/verify?ticker=${encodeURIComponent(ticker)}`;
+    if (expiration) url += `&expiration=${encodeURIComponent(expiration)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || data.detail || 'Errore sconosciuto da FlashAlpha');
+
+    const ours = window.lastResult;
+    const rows = [
+      { label: "Net GEX", ours: ours ? ours.netGex.toFixed(0) : "n/d (calcola prima)", theirs: data.net_gex ?? "n/d" },
+      { label: "Call Wall", ours: ours ? ours.callWall : "n/d", theirs: data.call_wall ?? "n/d" },
+      { label: "Put Wall", ours: ours ? ours.putWall : "n/d", theirs: data.put_wall ?? "n/d" },
+      { label: "Zero Gamma", ours: ours && ours.zeroGamma !== null ? ours.zeroGamma.toFixed(2) : "n/d", theirs: data.gamma_flip ?? "n/d" },
+      { label: "Max Pain", ours: ours ? ours.maxPain : "n/d", theirs: data.max_pain ?? "n/d" },
+    ];
+    const tableRows = rows.map(r => `<tr><td>${r.label}</td><td>${r.ours}</td><td>${r.theirs}</td></tr>`).join("");
+
+    verifyEl.innerHTML = `
+      <div class="card">
+        <div class="section-title">Confronto: nostro calcolo vs FlashAlpha</div>
+        <table><tr><th>Livello</th><th>Nostro (Eulerpool)</th><th>FlashAlpha</th></tr>${tableRows}</table>
+        <div class="hint" style="margin-top:6px;">Se i valori sono vicini, è un buon segno di affidabilità. Se divergono molto, trattali con più cautela oggi — potrebbe dipendere da scadenze diverse usate dalle due fonti o da un aggiornamento OI diverso.</div>
+      </div>
+    `;
+  } catch (e) {
+    verifyEl.innerHTML = "";
+    errEl.textContent = "Errore verifica indipendente: " + e.message;
+    errEl.style.display = "block";
+  }
+}
+
+const RISK_FREE_RATE = 0.05;
+
+function bsGamma(spot, strike, tYears, iv) {
+  if (tYears <= 0 || iv <= 0 || spot <= 0 || strike <= 0) return 0;
+  const d1 = (Math.log(spot / strike) + (RISK_FREE_RATE + iv ** 2 / 2) * tYears) / (iv * Math.sqrt(tYears));
+  const pdf = Math.exp(-(d1 ** 2) / 2) / Math.sqrt(2 * Math.PI);
+  return pdf / (spot * iv * Math.sqrt(tYears));
+}
+
+// Approssimazione Abramowitz-Stegun della funzione errore, per la CDF normale
+function erf(x) {
+  const sign = x >= 0 ? 1 : -1;
+  x = Math.abs(x);
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+  const t = 1 / (1 + p * x);
+  const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  return sign * y;
+}
+
+function normCdf(x) {
+  return 0.5 * (1 + erf(x / Math.sqrt(2)));
+}
+
+// Delta Black-Scholes: N(d1) per le call, N(d1)-1 per le put (gia' negativo di suo)
+function bsDelta(spot, strike, tYears, iv, type) {
+  if (tYears <= 0 || iv <= 0 || spot <= 0 || strike <= 0) return 0;
+  const d1 = (Math.log(spot / strike) + (RISK_FREE_RATE + iv ** 2 / 2) * tYears) / (iv * Math.sqrt(tYears));
+  const nd1 = normCdf(d1);
+  return type === "call" ? nd1 : nd1 - 1;
+}
+
+function computeGexAtSpot(options, hypSpot) {
+  let total = 0;
+  for (const o of options) {
+    const t = o.days_to_expiry / 365;
+    const gamma = bsGamma(hypSpot, o.strike, t, o.implied_vol);
+    const contrib = gamma * o.open_interest * 100 * hypSpot ** 2 * 0.01;
+    total += o.option_type === "call" ? contrib : -contrib;
+  }
+  return total;
+}
+
+// Delta Exposure netto (in azioni equivalenti) a un dato prezzo ipotetico
+function computeDexAtSpot(options, hypSpot) {
+  let total = 0;
+  for (const o of options) {
+    const t = o.days_to_expiry / 365;
+    const delta = bsDelta(hypSpot, o.strike, t, o.implied_vol, o.option_type);
+    total += delta * o.open_interest * 100; // gia' con segno corretto (put negativo di suo)
+  }
+  return total;
+}
+
+function findZeroGammaFlip(options, spot) {
+  const strikes = options.map(o => o.strike);
+  const minStrike = Math.min(...strikes, spot * 0.85);
+  const maxStrike = Math.max(...strikes, spot * 1.15);
+  const low = minStrike * 0.97, high = maxStrike * 1.03, steps = 200;
+  let prevPrice = null, prevVal = null;
+  for (let i = 0; i <= steps; i++) {
+    const price = low + (high - low) * i / steps;
+    const val = computeGexAtSpot(options, price);
+    if (prevVal !== null && (prevVal < 0) !== (val < 0)) {
+      const denom = Math.abs(prevVal) + Math.abs(val);
+      const frac = denom ? Math.abs(prevVal) / denom : 0;
+      return prevPrice + (price - prevPrice) * frac;
+    }
+    prevPrice = price; prevVal = val;
+  }
+  return null;
+}
+
+function computeMaxPain(options) {
+  const strikes = [...new Set(options.map(o => o.strike))].sort((a, b) => a - b);
+  if (!strikes.length) return null;
+  let bestStrike = null, bestPain = Infinity;
+  for (const candidate of strikes) {
+    let pain = 0;
+    for (const o of options) {
+      if (o.option_type === "call" && candidate > o.strike) pain += (candidate - o.strike) * o.open_interest;
+      else if (o.option_type === "put" && candidate < o.strike) pain += (o.strike - candidate) * o.open_interest;
+    }
+    if (pain < bestPain) { bestPain = pain; bestStrike = candidate; }
+  }
+  return bestStrike;
+}
+
+function computePcr(options, putOverride, callOverride) {
+  if (putOverride > 0 && callOverride > 0) {
+    return { value: putOverride / callOverride, source: "totali inseriti manualmente" };
+  }
+  const putOi = options.filter(o => o.option_type === "put").reduce((s, o) => s + o.open_interest, 0);
+  const callOi = options.filter(o => o.option_type === "call").reduce((s, o) => s + o.open_interest, 0);
+  return { value: callOi ? putOi / callOi : Infinity, source: "somma degli strike inseriti (meno preciso)" };
+}
+
+function assessDataQuality(options, spot) {
+  const strikes = [...new Set(options.map(o => o.strike))];
+  const warnings = [];
+  if (strikes.length < 6) {
+    warnings.push(`Solo ${strikes.length} strike inseriti: Net GEX e Max Pain sono indicativi ma parziali. Per lo Zero Gamma Flip, il DEX e un PCR affidabile servono più strike (idealmente l'intera chain intorno allo spot).`);
+  }
+  const range = (Math.max(...strikes) - Math.min(...strikes)) / spot;
+  if (range < 0.05) {
+    warnings.push("Il range di strike inserito copre meno del 5% del prezzo spot: lo Zero Gamma Flip potrebbe non essere rilevabile o essere fuori da questo intervallo.");
+  }
+  const dteSet = new Set(options.map(o => o.days_to_expiry));
+  if (dteSet.size > 1) {
+    warnings.push("Hai inserito scadenze diverse insieme: il Net GEX totale le somma tutte. Guarda il breakdown per scadenza qui sotto per non confondere il segnale weekly con quello monthly.");
+  }
+  return warnings;
+}
+
+function groupByExpiry(options) {
+  const groups = {};
+  for (const o of options) {
+    const key = o.days_to_expiry;
+    (groups[key] = groups[key] || []).push(o);
+  }
+  return groups;
+}
+
+function buildStrikeProfile(options, spot) {
+  const byStrike = {};
+  for (const o of options) {
+    const t = o.days_to_expiry / 365;
+    const gamma = bsGamma(spot, o.strike, t, o.implied_vol);
+    const contrib = gamma * o.open_interest * 100 * spot ** 2 * 0.01;
+    if (!byStrike[o.strike]) byStrike[o.strike] = { strike: o.strike, call: 0, put: 0, callOi: 0, putOi: 0 };
+    if (o.option_type === "call") {
+      byStrike[o.strike].call += contrib;
+      byStrike[o.strike].callOi += o.open_interest;
+    } else {
+      byStrike[o.strike].put -= contrib;
+      byStrike[o.strike].putOi += o.open_interest;
+    }
+  }
+  return Object.values(byStrike).sort((a, b) => a.strike - b.strike);
+}
+
+function fmtBig(n) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1e9) return sign + "$" + (abs / 1e9).toFixed(1) + "B";
+  if (abs >= 1e6) return sign + "$" + (abs / 1e6).toFixed(1) + "M";
+  if (abs >= 1e3) return sign + "$" + (abs / 1e3).toFixed(1) + "K";
+  return sign + "$" + abs.toFixed(0);
+}
+
+function fmtOi(n) {
+  return Math.round(n).toLocaleString("it-IT") + " OI";
+}
+
+function fmtShares(n) {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1e6) return sign + (abs / 1e6).toFixed(2) + "M az.";
+  if (abs >= 1e3) return sign + (abs / 1e3).toFixed(1) + "K az.";
+  return sign + abs.toFixed(0) + " az.";
+}
+
+function renderStrikeProfileChart(profile, spot, flip) {
+  const callTotal = profile.reduce((s, p) => s + p.call, 0);
+  const putTotal = profile.reduce((s, p) => s + p.put, 0);
+  const netTotal = callTotal + putTotal;
+  const totalGex = Math.abs(callTotal) + Math.abs(putTotal);
+  const totalOi = profile.reduce((s, p) => s + p.callOi + p.putOi, 0);
+  const ratio = totalGex ? Math.abs(netTotal) / totalGex : 0;
+
+  let callWall = null, putWall = null;
+  for (const p of profile) {
+    if (p.call > 0 && (callWall === null || p.call > callWall.call)) callWall = p;
+    if (p.put < 0 && (putWall === null || p.put < putWall.put)) putWall = p;
+  }
+
+  const callWallPct = callWall ? ((callWall.strike - spot) / spot * 100) : null;
+  const putWallPct = putWall ? ((putWall.strike - spot) / spot * 100) : null;
+
+  const summaryHtml = `
+    <div class="chart-summary">
+      <div class="chart-stat"><div class="chart-stat-label">Spot Price</div><div class="chart-stat-value">${spot.toFixed(2)}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Net GEX</div><div class="chart-stat-value ${netTotal >= 0 ? 'pos' : 'neg'}">${fmtBig(netTotal)}</div><div class="chart-stat-sub">Ratio: ${ratio.toFixed(2)}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Call GEX</div><div class="chart-stat-value pos">${fmtBig(callTotal)}</div><div class="chart-stat-sub">${fmtOi(profile.reduce((s,p)=>s+p.callOi,0))}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Put GEX</div><div class="chart-stat-value neg">${fmtBig(putTotal)}</div><div class="chart-stat-sub">${fmtOi(profile.reduce((s,p)=>s+p.putOi,0))}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Total GEX</div><div class="chart-stat-value" style="color:var(--accent)">${fmtBig(totalGex)}</div><div class="chart-stat-sub">${fmtOi(totalOi)}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Call Wall</div><div class="chart-stat-value pos">${callWall ? callWall.strike : 'n/d'}</div><div class="chart-stat-sub">${callWallPct !== null ? (callWallPct>=0?'+':'')+callWallPct.toFixed(2)+'%' : ''}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Put Wall</div><div class="chart-stat-value neg">${putWall ? putWall.strike : 'n/d'}</div><div class="chart-stat-sub">${putWallPct !== null ? (putWallPct>=0?'+':'')+putWallPct.toFixed(2)+'%' : ''}</div></div>
+      <div class="chart-stat"><div class="chart-stat-label">Zero Gamma</div><div class="chart-stat-value">${flip !== null ? flip.toFixed(2) : 'N/A'}</div></div>
+    </div>
+  `;
+
+  const W = 360, H = 240, padL = 34, padR = 8, padT = 10, padB = 20;
+  const chartW = W - padL - padR, chartH = H - padT - padB;
+  const strikes = profile.map(p => p.strike);
+  const minK = Math.min(...strikes), maxK = Math.max(...strikes);
+  const maxAbs = Math.max(1, ...profile.map(p => Math.max(p.call, -p.put)));
+  const xScale = (k) => padL + (maxK > minK ? (k - minK) / (maxK - minK) : 0.5) * chartW;
+  const yZero = padT + chartH / 2;
+  const yScale = (v) => yZero - (v / maxAbs) * (chartH / 2);
+  const barW = Math.max(2, chartW / strikes.length * 0.6);
+
+  let bars = "";
+  for (const p of profile) {
+    const x = xScale(p.strike) - barW / 2;
+    if (p.call > 0) {
+      const y = yScale(p.call);
+      const isWall = callWall && p.strike === callWall.strike;
+      bars += `<rect x="${x}" y="${y}" width="${barW}" height="${yZero - y}" fill="var(--green)" ${isWall ? 'stroke="#fff" stroke-width="1.5"' : ''}/>`;
+    }
+    if (p.put < 0) {
+      const y = yZero;
+      const h = yScale(p.put) - yZero;
+      const isWall = putWall && p.strike === putWall.strike;
+      bars += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="var(--red)" ${isWall ? 'stroke="#fff" stroke-width="1.5"' : ''}/>`;
+    }
+  }
+
+  const spotX = xScale(Math.max(minK, Math.min(maxK, spot)));
+  const spotLine = `<line x1="${spotX}" y1="${padT}" x2="${spotX}" y2="${padT + chartH}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="${spotX}" y="${padT - 2}" font-size="8" fill="var(--accent)" text-anchor="middle">Spot</text>`;
+
+  let flipLine = "";
+  if (flip !== null && flip >= minK && flip <= maxK) {
+    const flipX = xScale(flip);
+    flipLine = `<line x1="${flipX}" y1="${padT}" x2="${flipX}" y2="${padT + chartH}" stroke="#fff" stroke-width="1" stroke-dasharray="2,2" opacity="0.5"/>`;
+  }
+
+  const step = Math.max(1, Math.ceil(strikes.length / 6));
+  let xLabels = "";
+  for (let i = 0; i < strikes.length; i += step) {
+    const k = strikes[i];
+    xLabels += `<text x="${xScale(k)}" y="${H - 4}" font-size="8" fill="var(--muted)" text-anchor="middle">${k}</text>`;
+  }
+
+  const svg = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:transparent;">
+      <line x1="${padL}" y1="${yZero}" x2="${W - padR}" y2="${yZero}" stroke="var(--border)" stroke-width="1"/>
+      ${bars}
+      ${spotLine}
+      ${flipLine}
+      ${xLabels}
+    </svg>
+  `;
+
+  return {
+    html: `
+      <div class="card">
+        <div class="section-title">Strike Profile</div>
+        ${summaryHtml}
+        <div style="margin-top:12px;">${svg}</div>
+        <div class="hint" style="margin-top:6px;">Verde = Call Gamma (sopra) · Rosso = Put Gamma (sotto) · bordo bianco = Call Wall / Put Wall · linea tratteggiata blu = Spot · linea tratteggiata bianca = Zero Gamma</div>
+      </div>
+    `,
+    callWall: callWall ? callWall.strike : null,
+    putWall: putWall ? putWall.strike : null,
+  };
+}
+
+function renderDexSection(options, spot, flip, callWallStrike, putWallStrike) {
+  const dexAtSpot = computeDexAtSpot(options, spot);
+  const dexDollarAtSpot = dexAtSpot * spot;
+
+  let callDex = 0, putDex = 0;
+  for (const o of options) {
+    const t = o.days_to_expiry / 365;
+    const delta = bsDelta(spot, o.strike, t, o.implied_vol, o.option_type);
+    const contrib = delta * o.open_interest * 100;
+    if (o.option_type === "call") callDex += contrib; else putDex += contrib;
+  }
+
+  const scenarios = [
+    { label: "Spot attuale", price: spot },
+  ];
+  if (flip !== null) scenarios.push({ label: "Zero Gamma Flip", price: flip });
+  if (putWallStrike !== null) scenarios.push({ label: "Put Wall", price: putWallStrike });
+  if (callWallStrike !== null) scenarios.push({ label: "Call Wall", price: callWallStrike });
+
+  const rows = scenarios.map(s => {
+    const dex = computeDexAtSpot(options, s.price);
+    const dexDollar = dex * s.price;
+    const diffShares = dex - dexAtSpot;
+    const diffDollar = diffShares * s.price;
+    return { ...s, dex, dexDollar, diffShares, diffDollar };
+  });
+
+  const tableRows = rows.map(r => `
+    <tr>
+      <td>${r.label} (${r.price.toFixed(2)})</td>
+      <td class="${r.dex >= 0 ? '' : ''}" style="color:${r.dex >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtShares(r.dex)}</td>
+      <td>${fmtBig(r.dexDollar)}</td>
+      <td style="color:${r.diffShares >= 0 ? 'var(--green)' : 'var(--red)'}">${r.label === "Spot attuale" ? "—" : fmtShares(r.diffShares)}</td>
+    </tr>
+  `).join("");
+
+  return `
+    <div class="card">
+      <div class="section-title">Delta Exposure (DEX)</div>
+      <div class="hint">Quante azioni equivalenti i market maker dovrebbero comprare/vendere per riportare a zero la loro esposizione direzionale (Delta), oggi e in alcuni scenari ipotetici.</div>
+      <div class="row"><span>Net Delta a spot</span><span class="regime ${dexAtSpot >= 0 ? 'pos' : 'neg'}">${fmtShares(dexAtSpot)}</span></div>
+      <div class="row"><span>Controvalore ($)</span><span class="regime ${dexDollarAtSpot >= 0 ? 'pos' : 'neg'}">${fmtBig(dexDollarAtSpot)}</span></div>
+      <div class="row"><span>Call Delta / Put Delta</span><span>${fmtShares(callDex)} / ${fmtShares(putDex)}</span></div>
+      <div class="section-title" style="margin-top:14px;font-size:13px;">Cosa succederebbe se il prezzo arrivasse a...</div>
+      <table>
+        <tr><th>Scenario</th><th>Net Delta</th><th>Controvalore</th><th>Copertura extra</th></tr>
+        ${tableRows}
+      </table>
+      <div class="hint" style="margin-top:6px;">"Copertura extra" = quante azioni in più (rispetto ad ora) i MM dovrebbero muovere se il prezzo arrivasse a quel livello — positivo significa acquisti aggiuntivi, negativo vendite aggiuntive.</div>
+    </div>
+  `;
+}
+
+function buildGammaTable(options, spot) {
+  return options.map(o => {
+    const t = o.days_to_expiry / 365;
+    const gamma = bsGamma(spot, o.strike, t, o.implied_vol);
+    return { strike: o.strike, type: o.option_type, iv: o.implied_vol, gamma };
+  }).sort((a, b) => a.strike - b.strike || a.type.localeCompare(b.type));
+}
+
+function buildPerStrikeTable(options, spot) {
+  const byStrike = {};
+  for (const o of options) {
+    const t = o.days_to_expiry / 365;
+    const gamma = bsGamma(spot, o.strike, t, o.implied_vol);
+    let contrib = gamma * o.open_interest * 100 * spot ** 2 * 0.01;
+    contrib = o.option_type === "call" ? contrib : -contrib;
+    byStrike[o.strike] = (byStrike[o.strike] || 0) + contrib;
+  }
+  return Object.entries(byStrike)
+    .map(([k, v]) => ({ strike: parseFloat(k), gex: Math.round(v * 100) / 100 }))
+    .sort((a, b) => a.strike - b.strike);
+}
+
+function interpret(netGex, spot, flip, maxPain, pcr) {
+  const regime = netGex > 0 ? "stabile (range-bound)" : "volatile (mosse amplificate)";
+  const notes = [];
+  if (flip !== null) {
+    notes.push(spot < flip
+      ? "prezzo sotto il flip point: pressione verso il basso più probabile finché resta sotto"
+      : "prezzo sopra il flip point: contesto più stabilizzante, i MM tendono a comprare i ribassi");
+  }
+  if (maxPain !== null) {
+    const diffPct = (spot - maxPain) / maxPain * 100;
+    if (Math.abs(diffPct) > 1) {
+      const direction = diffPct > 0 ? "sopra" : "sotto";
+      notes.push(`prezzo ${direction} il Max Pain di ${Math.abs(diffPct).toFixed(1)}%: possibile gravitazione verso ${maxPain.toFixed(2)} in avvicinamento a scadenza`);
+    }
+  }
+  if (pcr.value > 1.2) notes.push("PCR alto: sentiment ribassista/hedging pesante (a volte contrarian rialzista)");
+  else if (pcr.value < 0.7) notes.push("PCR basso: sentiment rialzista/più call comprate (a volte contrarian ribassista)");
+  return { regime, notes };
+}
+
+function parseCsv(text) {
+  return text.trim().split("\n").filter(Boolean).map(line => {
+    const parts = line.split(",").map(s => s.trim());
+    const [strike, option_type, open_interest, implied_vol, days_to_expiry, volume, last, mid] = parts;
+    return {
+      strike: parseFloat(strike),
+      option_type: option_type.toLowerCase(),
+      open_interest: parseFloat(open_interest),
+      implied_vol: parseFloat(implied_vol),
+      days_to_expiry: parseFloat(days_to_expiry),
+      volume: volume !== undefined && volume !== "" ? parseFloat(volume) : null,
+      last: last !== undefined && last !== "" ? parseFloat(last) : null,
+      mid: mid !== undefined && mid !== "" ? parseFloat(mid) : null,
+    };
+  });
+}
+
+// Tick rule (Lee-Ready semplificato): se l'ultimo scambio è sopra il Mid,
+// l'acquirente ha "pagato l'Ask" -> aggressività lato acquisto.
+// Se è sotto il Mid, aggressività lato vendita. E' un segnale PROBABILISTICO
+// su chi era piu' aggressivo nello scambio, NON una conferma che la
+// posizione sia stata aperta piuttosto che chiusa.
+function tickSide(last, mid) {
+  if (last === null || mid === null || isNaN(last) || isNaN(mid)) return null;
+  if (last > mid) return "ASK (pressione d'acquisto)";
+  if (last < mid) return "BID (pressione di vendita)";
+  return "neutro (sul Mid)";
+}
+
+function buildVolumeAlerts(options) {
+  const alerts = [];
+  for (const o of options) {
+    if (o.volume === null || o.volume === undefined || isNaN(o.volume)) continue;
+    if (o.open_interest > 0 && o.volume > o.open_interest) {
+      const ratio = o.volume / o.open_interest;
+      const side = tickSide(o.last, o.mid);
+      alerts.push({ strike: o.strike, type: o.option_type, volume: o.volume, oi: o.open_interest, ratio, side });
+    }
+  }
+  return alerts.sort((a, b) => b.ratio - a.ratio);
+}
+
+function calcola() {
+  document.activeElement && document.activeElement.blur();
+
+  const errEl = document.getElementById("error");
+  const resEl = document.getElementById("result");
+  errEl.style.display = "none";
+  resEl.innerHTML = "";
+
+  try {
+    const ticker = document.getElementById("ticker").value || "N/A";
+    const spot = parseFloat(document.getElementById("spot").value);
+    const options = parseCsv(document.getElementById("csv").value);
+    if (!spot || !options.length) throw new Error("Inserisci prezzo spot e almeno una riga di opzioni valida");
+
+    const putOverride = parseFloat(document.getElementById("putOiTotal").value);
+    const callOverride = parseFloat(document.getElementById("callOiTotal").value);
+
+    const netGex = computeGexAtSpot(options, spot);
+    const flip = findZeroGammaFlip(options, spot);
+    const maxPain = computeMaxPain(options);
+    const pcr = computePcr(options, putOverride, callOverride);
+    const perStrike = buildPerStrikeTable(options, spot);
+    const gammaTable = buildGammaTable(options, spot);
+    const strikeProfile = buildStrikeProfile(options, spot);
+    const { regime, notes } = interpret(netGex, spot, flip, maxPain, pcr);
+    const warnings = assessDataQuality(options, spot);
+    const volumeAlerts = buildVolumeAlerts(options);
+
+    const positive = netGex > 0;
+    const rows = perStrike.map(r => `<tr><td>${r.strike}</td><td>${r.gex}</td></tr>`).join("");
+    const gammaRows = gammaTable.map(r => `<tr><td>${r.strike}</td><td>${r.type}</td><td>${(r.iv * 100).toFixed(1)}%</td><td>${r.gamma.toFixed(5)}</td></tr>`).join("");
+
+    let breakdownHtml = "";
+    const groups = groupByExpiry(options);
+    const dteKeys = Object.keys(groups);
+    if (dteKeys.length > 1) {
+      const groupRows = dteKeys.map(dte => {
+        const groupGex = computeGexAtSpot(groups[dte], spot);
+        const groupPositive = groupGex > 0;
+        return `<tr><td>${dte} giorni</td><td class="regime ${groupPositive ? 'pos' : 'neg'}">${groupGex.toFixed(2)}</td><td>${groupPositive ? 'stabile' : 'volatile'}</td></tr>`;
+      }).join("");
+      breakdownHtml = `
+        <div class="section-title">Breakdown per scadenza</div>
+        <table><tr><th>Scadenza</th><th>GEX</th><th>Regime</th></tr>${groupRows}</table>`;
+    }
+
+    const warningsHtml = warnings.length
+      ? `<div class="warning">⚠️ ${warnings.join("<br><br>")}</div>`
+      : "";
+
+    let volumeAlertHtml = "";
+    if (volumeAlerts.length) {
+      const rows = volumeAlerts.slice(0, 8).map(a =>
+        `<tr><td>${a.strike} ${a.type}</td><td>${a.volume}</td><td>${a.oi}</td><td>${a.ratio.toFixed(1)}x</td><td style="font-size:10px;">${a.side || 'n/d'}</td></tr>`
+      ).join("");
+      volumeAlertHtml = `
+        <div class="warning">
+          ⚠️ <strong>Attività intraday elevata</strong> — questi strike hanno oggi un Volume superiore all'Open Interest di ieri sera. Non sappiamo con certezza se sono nuovi contratti o chiusure di posizioni esistenti: la colonna "Lato" (se hai inserito Last/Mid) è solo un'indicazione probabilistica di chi era più aggressivo nello scambio, non una conferma. Trattali comunque con cautela finché l'OI non si aggiorna stasera.
+          <table style="margin-top:8px;"><tr><th>Strike</th><th>Vol.</th><th>OI (ieri)</th><th>Rapporto</th><th>Lato</th></tr>${rows}</table>
+        </div>`;
+    }
+
+    const chartResult = renderStrikeProfileChart(strikeProfile, spot, flip);
+    const dexHtml = renderDexSection(options, spot, flip, chartResult.callWall, chartResult.putWall);
+
+    window.lastResult = {
+      ticker: ticker.toUpperCase(),
+      spot: spot,
+      netGex: netGex,
+      callWall: chartResult.callWall,
+      putWall: chartResult.putWall,
+      maxPain: maxPain,
+      zeroGamma: flip,
+    };
+
+    resEl.innerHTML = `
+      ${chartResult.html}
+      <button class="btn2" style="width:100%;margin-top:12px;" onclick="copyLevels()">📋 Copia livelli per Investitor10</button>
+      ${dexHtml}
+      <div class="card">
+        <div class="row"><span>Ticker</span><span>${ticker.toUpperCase()}</span></div>
+        <div class="row"><span>Spot</span><span>${spot}</span></div>
+        <div class="row"><span>Net GEX</span><span class="regime ${positive ? 'pos' : 'neg'}">${netGex.toFixed(2)}</span></div>
+        <div class="row"><span>Regime</span><span class="regime ${positive ? 'pos' : 'neg'}">${regime}</span></div>
+        <div class="row"><span>Zero Gamma Flip</span><span>${flip !== null ? flip.toFixed(2) : 'n/d'}</span></div>
+        <div class="row"><span>Max Pain</span><span>${maxPain !== null ? maxPain : 'n/d'}</span></div>
+        <div class="row"><span>Put/Call Ratio</span><span>${pcr.value.toFixed(3)}</span></div>
+        <div class="hint">PCR calcolato da: ${pcr.source}</div>
+        <ul class="notes">${notes.map(n => `<li>${n}</li>`).join("")}</ul>
+        ${breakdownHtml}
+        ${warningsHtml}
+        ${volumeAlertHtml}
+        <div class="section-title">GEX per strike (Gamma × Open Interest)</div>
+        <table><tr><th>Strike</th><th>GEX</th></tr>${rows}</table>
+        <div class="section-title">Gamma per opzione (dato grezzo, prima dell'OI)</div>
+        <table><tr><th>Strike</th><th>Tipo</th><th>IV</th><th>Gamma</th></tr>${gammaRows}</table>
+        <div class="hint">Il Gamma qui è il valore Black-Scholes puro per una singola opzione a quello strike/IV. Il GEX sopra è Gamma × Open Interest. Il DEX (sezione dedicata sopra) usa invece il Delta, non il Gamma: ti dice l'esposizione direzionale attuale dei market maker, non la sua velocità di cambiamento.</div>
+      </div>
+    `;
+    resEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = "block";
+    errEl.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+// ---------------------------------------------------------------------------
+// Scheda "Grafici": screenshot multi-timeframe -> Gemini (chiave sul server Render)
+// ---------------------------------------------------------------------------
+const CH_TFS = ["1m","3m","5m","15m","30m","1h","2h","4h","1D","1W","1M"];
+let chItems = [];
+
+function refreshGexInfo() {
+  const el = document.getElementById('chGexInfo');
+  const g = window.lastResult;
+  if (g) {
+    el.innerHTML = '✅ Livelli GEX in uso — ' + g.ticker + ': spot ' + g.spot + ' · Call Wall ' + g.callWall + ' · Put Wall ' + g.putWall +
+      ' · Zero Gamma ' + (g.zeroGamma !== null && g.zeroGamma !== undefined ? Number(g.zeroGamma).toFixed(2) : 'n/d') + ' · Max Pain ' + g.maxPain;
+    const a = document.getElementById('chAsset');
+    if (!a.value) a.value = g.ticker;
+  } else {
+    el.textContent = 'Calcola prima il GEX (scheda Manuale o Automatico): i livelli vengono usati in automatico nell\'analisi dei grafici.';
+  }
+}
+
+function chShrink(file) {
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      const M = 1600, k = Math.min(1, M / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg', 0.85));
+    };
+    im.onerror = () => rej(new Error('immagine non leggibile'));
+    im.src = u;
+  });
+}
+
+function renderChartList() {
+  const l = document.getElementById('chList');
+  l.innerHTML = chItems.map((it, i) =>
+    '<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">' +
+    '<img src="' + it.data + '" style="width:64px;height:48px;object-fit:cover;border-radius:8px;">' +
+    '<select onchange="chItems[' + i + '].tf=this.value" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);">' +
+    CH_TFS.map(t => '<option' + (t === it.tf ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>' +
+    '<div style="flex:1;font-size:12px;color:var(--muted);">Grafico ' + (i + 1) + '</div>' +
+    '<button onclick="chItems.splice(' + i + ',1);renderChartList()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 10px;">✕</button></div>'
+  ).join('');
+  document.getElementById('chGo').disabled = chItems.length === 0;
+}
+
+async function onChartFiles(e) {
+  const files = Array.from(e.target.files); e.target.value = '';
+  for (const f of files) {
+    if (chItems.length >= 8) break;
+    try { chItems.push({ data: await chShrink(f), tf: CH_TFS[Math.min(chItems.length * 2 + 2, CH_TFS.length - 1)] }); }
+    catch (err) { alert('Impossibile caricare un\'immagine'); }
+  }
+  renderChartList();
+}
+
+function chEsc(v) { const d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; }
+function chCls(b) { b = (b || '').toLowerCase(); return b.indexOf('rialz') >= 0 ? 'pos' : b.indexOf('ribass') >= 0 ? 'neg' : ''; }
+
+function showChartAnalysis(r) {
+  const li = arr => (arr || []).map(x => '<li>' + chEsc(x) + '</li>').join('');
+  const tfs = (r.timeframe || []).map(t =>
+    '<div class="row"><span><b>' + chEsc(t.tf) + '</b><br><span style="font-size:11px;">' + chEsc(t.nota) + '</span></span><span class="regime ' + chCls(t.bias) + '">' + chEsc(t.bias) + '</span></div>').join('');
+  const sc = (r.scenari || []).map(s =>
+    '<div style="border-left:3px solid var(--border);padding-left:10px;margin:10px 0;"><b>' + chEsc(s.nome) + '</b> · ' + chEsc(s.probabilita) + '%<div style="font-size:13px;">' + chEsc(s.descrizione) +
+    '</div><div class="hint">Invalidazione: ' + chEsc(s.invalidazione) + '</div></div>').join('');
+  const conf = Math.max(0, Math.min(100, +r.confidenza || 0));
+  document.getElementById('chResult').innerHTML = (r.confluenza_numerica ? renderConfluence(r.confluenza_numerica) : '') +
+    '<div class="card"><div class="row"><span>Bias generale</span><span class="regime ' + chCls(r.bias_generale) + '">' + chEsc(r.bias_generale) + '</span></div>' +
+    '<div style="height:8px;border-radius:99px;background:var(--border);overflow:hidden;margin:6px 0;"><div style="height:100%;width:' + conf + '%;background:var(--accent);"></div></div>' +
+    '<div class="hint">Confidenza ' + conf + '% · Allineamento time frame: ' + chEsc(r.allineamento) + '</div>' +
+    '<p style="font-size:14px;">' + chEsc(r.sintesi) + '</p>' +
+    (r.confluenza_gex ? '<div class="section-title">Confluenza opzioni / NQ / grafico</div><p style="font-size:13px;">' + chEsc(r.confluenza_gex) + '</p>' : '') +
+    '<div class="section-title">Per time frame</div>' + tfs +
+    '<div class="section-title">Supporti</div><ul class="notes">' + li(r.supporti) + '</ul>' +
+    '<div class="section-title">Resistenze</div><ul class="notes">' + li(r.resistenze) + '</ul>' +
+    '<div class="section-title">Scenari</div>' + sc +
+    ((r.avvertenze || []).length ? '<div class="warning">⚠️ ' + (r.avvertenze || []).map(chEsc).join('<br><br>') + '</div>' : '') +
+    '<div class="hint" style="margin-top:10px;">Lettura ipotetica generata da un\'IA: non è consulenza finanziaria né una previsione.</div></div>';
+}
+
+async function analyzeCharts() {
+  const errEl = document.getElementById('error'), st = document.getElementById('chStatus'), btn = document.getElementById('chGo');
+  errEl.style.display = 'none';
+  const base = document.getElementById('workerUrl').value.trim().replace(/\/$/, '') || location.origin;
+  btn.disabled = true; st.textContent = '⏳ Analisi in corso (il servizio Render gratuito può impiegare fino a un minuto a svegliarsi)...';
+  document.getElementById('chResult').innerHTML = '';
+  try {
+    const nq = document.getElementById('chNq').value;
+    const body = {
+      asset: document.getElementById('chAsset').value.trim(),
+      horizon: document.getElementById('chHor').value,
+      note: document.getElementById('chNote').value.trim(),
+      nq_change: nq === '' ? null : parseFloat(nq),
+      gex: window.lastResult || null,
+      images: chItems.map(it => ({ tf: it.tf, data: it.data.split(',')[1] }))
+    };
+    const resp = await fetch(base + '/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || data.error || ('HTTP ' + resp.status));
+    st.textContent = '';
+    showChartAnalysis(data);
+    saveJournal(data, body);
+  } catch (e) {
+    st.textContent = '';
+    errEl.textContent = 'Errore analisi grafici: ' + e.message;
+    errEl.style.display = 'block';
+  }
+  btn.disabled = chItems.length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Grafico a candele con i livelli GEX (lightweight-charts, dati da /candles)
+// ---------------------------------------------------------------------------
+let lwChart = null, lwSeries = null, lwLines = [], lwTf = '1h';
+
+function lwEnsureLib() {
+  return new Promise((res, rej) => {
+    if (window.LightweightCharts) return res();
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js';
+    sc.onload = () => res();
+    sc.onerror = () => rej(new Error('libreria grafico non raggiungibile (serve connessione)'));
+    document.head.appendChild(sc);
+  });
+}
+
+function lwSetTf(tf) {
+  lwTf = tf;
+  document.querySelectorAll('.chtf[data-tf]').forEach(b => b.classList.toggle('on', b.dataset.tf === tf));
+}
+
+function lwDrawLevels() {
+  lwLines.forEach(l => { try { lwSeries.removePriceLine(l); } catch (e) {} });
+  lwLines = [];
+  const g = window.lastResult;
+  const asset = (document.getElementById('chAsset').value || '').trim().toUpperCase();
+  if (!g || (asset && g.ticker && asset !== g.ticker)) return false;  // livelli di un altro ticker: non mostrarli
+  const defs = [
+    ['Call Wall', g.callWall, '#089981'], ['Put Wall', g.putWall, '#f23645'],
+    ['Zero Gamma', g.zeroGamma, '#e0a93b'], ['Max Pain', g.maxPain, '#a371f7']
+  ];
+  defs.forEach(([title, price, color]) => {
+    const p = Number(price);
+    if (price === null || price === undefined || !isFinite(p)) return;
+    lwLines.push(lwSeries.createPriceLine({ price: p, color: color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: title }));
+  });
+  return lwLines.length > 0;
+}
+
+async function loadChart() {
+  const info = document.getElementById('chChartInfo');
+  const asset = document.getElementById('chAsset').value.trim() || (window.lastResult && window.lastResult.ticker) || '';
+  if (!asset) { info.textContent = '⚠️ Inserisci prima l\'asset (es. AMZN).'; return; }
+  document.getElementById('chAsset').value = asset.toUpperCase();
+  const base = document.getElementById('workerUrl').value.trim().replace(/\/$/, '') || location.origin;
+  info.textContent = '⏳ Carico il grafico...';
+  try {
+    await lwEnsureLib();
+    const resp = await fetch(base + '/candles?ticker=' + encodeURIComponent(asset) + '&tf=' + encodeURIComponent(lwTf));
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || ('HTTP ' + resp.status));
+    if (!lwChart) {
+      lwChart = LightweightCharts.createChart(document.getElementById('chChart'), {
+        autoSize: true,
+        layout: { background: { color: '#0d1117' }, textColor: '#8b949e' },
+        grid: { vertLines: { color: '#1b2028', style: 1 }, horzLines: { color: '#1b2028', style: 1 } },
+        rightPriceScale: { borderColor: '#30363d' },
+        timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+        crosshair: { mode: 0 }
+      });
+      lwSeries = lwChart.addCandlestickSeries({
+        upColor: '#089981', downColor: '#f23645', borderVisible: false,
+        wickUpColor: '#089981', wickDownColor: '#f23645'
+      });
+    }
+    const off = new Date().getTimezoneOffset() * 60;  // mostra l'ora locale del telefono
+    lwSeries.setData(data.candles.map(c => ({ time: c.time - off, open: c.open, high: c.high, low: c.low, close: c.close })));
+    lwChart.timeScale().fitContent();
+    const hasLv = lwDrawLevels();
+    const last = data.candles[data.candles.length - 1];
+    info.textContent = data.ticker + ' · ' + lwTf + ' · ultimo ' + last.close + (hasLv ? ' · linee tratteggiate = livelli GEX' : ' · calcola il GEX per vedere i livelli sul grafico');
+  } catch (e) {
+    info.textContent = '⚠️ ' + e.message;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.chtf[data-tf]').forEach(b => b.addEventListener('click', () => { lwSetTf(b.dataset.tf); loadChart(); }));
+  document.getElementById('chLoad').addEventListener('click', loadChart);
+  lwSetTf('1h');
+});
+
+// ---------------------------------------------------------------------------
+// NQ automatico, confluenza, copia livelli
+// ---------------------------------------------------------------------------
+function svcBase() { return document.getElementById('workerUrl').value.trim().replace(/\/$/, '') || location.origin; }
+
+async function loadNq() {
+  const info = document.getElementById('chNqInfo');
+  info.textContent = '⏳ Leggo NQ...';
+  try {
+    const resp = await fetch(svcBase() + '/nq');
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.detail || ('HTTP ' + resp.status));
+    document.getElementById('chNq').value = d.change_pct;
+    info.textContent = 'NQ ' + d.price + ' (' + (d.change_pct >= 0 ? '+' : '') + d.change_pct + '% sulla chiusura precedente)';
+  } catch (e) {
+    info.textContent = '⚠️ ' + e.message;
+  }
+}
+
+function renderConfluence(c) {
+  const col = c.label === 'Rialzista' ? 'var(--green)' : c.label === 'Ribassista' ? 'var(--red)' : 'var(--muted)';
+  const pct = Math.round((c.score + 100) / 2);
+  return '<div class="card"><div class="section-title" style="margin-top:0;">Confluenza opzioni / NQ</div>' +
+    '<div class="row"><span>Punteggio</span><span class="regime" style="color:' + col + '">' + (c.score > 0 ? '+' : '') + c.score + ' · ' + c.label + '</span></div>' +
+    '<div style="position:relative;height:10px;border-radius:99px;background:linear-gradient(90deg,var(--red),var(--border),var(--green));margin:8px 0;"><div style="position:absolute;top:-3px;left:calc(' + pct + '% - 2px);width:4px;height:16px;background:#fff;border-radius:2px;"></div></div>' +
+    '<div class="row"><span>NQ</span><span>' + (c.nq_change === null || c.nq_change === undefined ? 'n/d' : (c.nq_change >= 0 ? '+' : '') + c.nq_change + '% (' + c.nq_state + ')') + '</span></div>' +
+    '<div class="row"><span>Peso opzioni / futures</span><span>' + c.w_options + '% / ' + c.w_futures + '%</span></div>' +
+    '<div class="row"><span>Posizione tra i muri</span><span>' + Math.round(c.pos_in_range * 100) + '% (0 = Put Wall, 100 = Call Wall)</span></div>' +
+    (c.target ? '<div class="row"><span>Obiettivo</span><span>' + c.target_name + ' ' + c.target + ' (' + (c.target_dist_pct >= 0 ? '+' : '') + c.target_dist_pct + '%)</span></div>' : '<div class="row"><span>Obiettivo</span><span>range tra i muri</span></div>') +
+    '<div class="hint">' + chEsc(c.note) + '</div></div>';
+}
+
+async function calcConfluence() {
+  const el = document.getElementById('chConf');
+  if (!window.lastResult) { el.innerHTML = '<div class="hint">⚠️ Calcola prima il GEX (scheda Manuale o Automatico).</div>'; return; }
+  el.innerHTML = '<div class="hint">⏳ Calcolo...</div>';
+  try {
+    const nq = document.getElementById('chNq').value;
+    const resp = await fetch(svcBase() + '/confluence', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gex: window.lastResult, nq_change: nq === '' ? null : parseFloat(nq) }) });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.detail || ('HTTP ' + resp.status));
+    el.innerHTML = renderConfluence(d.confluenza);
+  } catch (e) { el.innerHTML = '<div class="hint">⚠️ ' + chEsc(e.message) + '</div>'; }
+}
+
+function copyLevels() {
+  const g = window.lastResult;
+  if (!g) { alert('Calcola prima il GEX'); return; }
+  const f = v => (v === null || v === undefined || !isFinite(Number(v))) ? 'n/d' : (Math.round(Number(v) * 100) / 100);
+  const txt = g.ticker + '\nCall Wall: ' + f(g.callWall) + '\nPut Wall: ' + f(g.putWall) + '\nZero Gamma: ' + f(g.zeroGamma) + '\nMax Pain: ' + f(g.maxPain) +
+    '\n\nCSV (ticker,callWall,putWall,zeroGamma,maxPain)\n' + [g.ticker, f(g.callWall), f(g.putWall), f(g.zeroGamma), f(g.maxPain)].join(',');
+  const done = () => alert('Livelli copiati negli appunti');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(() => prompt('Copia i livelli:', txt));
+  else prompt('Copia i livelli:', txt);
+}
+
+// ---------------------------------------------------------------------------
+// Diario con verifica dei risultati (salvato solo sul telefono)
+// ---------------------------------------------------------------------------
+const J_KEY = 'gexJournal';
+const J_HOR = { 'Intraday': { sec: 4 * 3600, thr: 0.3 }, 'Swing (giorni)': { sec: 2 * 86400, thr: 0.6 }, 'Medio periodo (settimane)': { sec: 10 * 86400, thr: 1.2 } };
+function jLoad() { try { return JSON.parse(localStorage.getItem(J_KEY) || '[]'); } catch (e) { return []; } }
+function jSave(a) { try { localStorage.setItem(J_KEY, JSON.stringify(a.slice(-200))); } catch (e) {} }
+
+function saveJournal(data, body) {
+  const g = window.lastResult;
+  const asset = (body.asset || '').toUpperCase();
+  const lv = (g && (!asset || g.ticker === asset)) ? { callWall: g.callWall, putWall: g.putWall, zeroGamma: g.zeroGamma, maxPain: g.maxPain } : null;
+  const a = jLoad();
+  a.push({ id: Date.now(), ts: Math.floor(Date.now() / 1000), ticker: asset || (g ? g.ticker : '?'), hor: body.horizon,
+    bias: data.bias_generale, conf: +data.confidenza || 0, score: data.confluenza_numerica ? data.confluenza_numerica.score : null,
+    levels: lv, status: 'pending', result: null });
+  jSave(a);
+}
+
+function jFmtDate(ts) { return new Date(ts * 1000).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+
+async function verifyEntry(e) {
+  const hz = J_HOR[e.hor] || J_HOR['Swing (giorni)'];
+  const target = e.ts + hz.sec, now = Math.floor(Date.now() / 1000);
+  if (now < target) return { state: 'wait', until: target };
+  const resp = await fetch(svcBase() + '/candles?ticker=' + encodeURIComponent(e.ticker) + '&tf=1h');
+  const d = await resp.json();
+  if (!resp.ok) throw new Error(d.detail || ('HTTP ' + resp.status));
+  const cs = d.candles;
+  let entry = null; for (const c of cs) { if (c.time <= e.ts) entry = c; else break; }
+  const end = cs.find(c => c.time >= target);
+  if (!entry || !end) {
+    if (now > target + 4 * 86400) return { state: 'nd' };
+    return { state: 'wait', until: target };
+  }
+  const move = (end.close / entry.close - 1) * 100;
+  let hi = -Infinity, lo = Infinity;
+  cs.forEach(c => { if (c.time >= entry.time && c.time <= end.time) { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); } });
+  const thr = hz.thr;
+  let out;
+  if (e.bias === 'Rialzista') out = move >= thr ? 'ok' : (move > 0 ? 'mid' : 'ko');
+  else if (e.bias === 'Ribassista') out = move <= -thr ? 'ok' : (move < 0 ? 'mid' : 'ko');
+  else out = Math.abs(move) < thr ? 'ok' : 'ko';
+  const lv = e.levels || {};
+  return { state: 'done', out: out, move: Math.round(move * 100) / 100, entryPx: entry.close, endPx: end.close,
+    hitCall: lv.callWall ? hi >= Number(lv.callWall) : null, hitPut: lv.putWall ? lo <= Number(lv.putWall) : null };
+}
+
+async function verifyAll(force) {
+  const st = document.getElementById('jStatus');
+  const a = jLoad(); const now = Math.floor(Date.now() / 1000);
+  const due = a.filter(e => e.status === 'pending' && now >= e.ts + (J_HOR[e.hor] || J_HOR['Swing (giorni)']).sec).slice(0, 6);
+  if (!due.length) { if (force) st.textContent = 'Nessuna analisi scaduta da verificare.'; return; }
+  st.textContent = '⏳ Verifico ' + due.length + ' analisi...';
+  for (const e of due) {
+    try {
+      const r = await verifyEntry(e);
+      if (r.state === 'done') { e.status = 'done'; e.result = r; }
+      else if (r.state === 'nd') { e.status = 'nd'; }
+    } catch (err) { st.textContent = '⚠️ ' + err.message; }
+  }
+  jSave(a); st.textContent = ''; renderJournal();
+}
+
+function renderJournal() {
+  const a = jLoad().slice().reverse();
+  const done = a.filter(e => e.status === 'done');
+  const ok = done.filter(e => e.result.out === 'ok').length, mid = done.filter(e => e.result.out === 'mid').length, ko = done.filter(e => e.result.out === 'ko').length;
+  const hi = done.filter(e => e.conf >= 70), hiOk = hi.filter(e => e.result.out === 'ok').length;
+  document.getElementById('jStats').innerHTML = done.length ?
+    '<div class="card"><div class="section-title" style="margin-top:0;">Risultati verificati: ' + done.length + '</div>' +
+    '<div class="row"><span>Corrette</span><span class="regime pos">' + ok + ' (' + Math.round(ok / done.length * 100) + '%)</span></div>' +
+    '<div class="row"><span>Direzione giusta ma debole</span><span>' + mid + '</span></div>' +
+    '<div class="row"><span>Sbagliate</span><span class="regime neg">' + ko + '</span></div>' +
+    (hi.length ? '<div class="row"><span>Con confidenza ≥ 70%</span><span>' + hiOk + '/' + hi.length + ' corrette</span></div>' : '') +
+    '<div class="hint">Campione piccolo = poco significativo: servono diverse decine di analisi per fidarsi della percentuale.</div></div>' :
+    '<div class="hint">Ancora nessuna analisi verificata.</div>';
+  const lab = { ok: ['Corretta', 'ok'], mid: ['Debole', 'mid'], ko: ['Sbagliata', 'ko'] };
+  document.getElementById('jList').innerHTML = a.map(e => {
+    let tag = '<span class="pill wait">In attesa</span>', det = '';
+    if (e.status === 'done') {
+      const r = e.result; tag = '<span class="pill ' + lab[r.out][1] + '">' + lab[r.out][0] + '</span>';
+      det = 'Da ' + r.entryPx + ' a ' + r.endPx + ' (' + (r.move >= 0 ? '+' : '') + r.move + '%)' +
+        (r.hitCall ? ' · toccato Call Wall' : '') + (r.hitPut ? ' · toccato Put Wall' : '');
+    } else if (e.status === 'nd') { tag = '<span class="pill wait">n/d</span>'; det = 'Dati di prezzo non disponibili per la verifica'; }
+    else { det = 'Verifica dopo ' + jFmtDate(e.ts + (J_HOR[e.hor] || J_HOR['Swing (giorni)']).sec); }
+    return '<div class="card" style="margin-top:10px;padding:12px;"><div class="row" style="padding:0;"><span><b style="color:var(--text)">' + chEsc(e.ticker) + '</b> · ' + chEsc(e.hor) + '</span>' + tag + '</div>' +
+      '<div class="hint">' + jFmtDate(e.ts) + ' · ' + chEsc(e.bias) + ' (confidenza ' + e.conf + '%)' + (e.score !== null && e.score !== undefined ? ' · punteggio ' + (e.score > 0 ? '+' : '') + e.score : '') + '</div>' +
+      '<div class="hint">' + det + '</div></div>';
+  }).join('');
+}
+
+function clearJournal() { if (confirm('Cancellare tutto il diario?')) { jSave([]); renderJournal(); } }
+
+// ---------------------------------------------------------------------------
+// Watchlist: livelli GEX di piu' ticker, ordinati per vicinanza a un muro
+// ---------------------------------------------------------------------------
+function computeLevels(options, spot) {
+  const netGex = computeGexAtSpot(options, spot);
+  const flip = findZeroGammaFlip(options, spot);
+  const maxPain = computeMaxPain(options);
+  const profile = buildStrikeProfile(options, spot);
+  let callWall = null, putWall = null;
+  for (const p of profile) {
+    if (p.call > 0 && (callWall === null || p.call > callWall.call)) callWall = p;
+    if (p.put < 0 && (putWall === null || p.put < putWall.put)) putWall = p;
+  }
+  return { netGex: netGex, flip: flip, maxPain: maxPain, callWall: callWall ? callWall.strike : null, putWall: putWall ? putWall.strike : null };
+}
+
+async function runWatchlist() {
+  const tickers = document.getElementById('wlTickers').value.split(',').map(t => t.trim().toUpperCase()).filter(Boolean).slice(0, 10);
+  const st = document.getElementById('wlStatus'), out = document.getElementById('wlResult');
+  if (!tickers.length) { st.textContent = '⚠️ Inserisci almeno un ticker.'; return; }
+  localStorage.setItem('gexWatch', tickers.join(','));
+  const rows = []; out.innerHTML = '';
+  for (let i = 0; i < tickers.length; i++) {
+    const t = tickers[i];
+    st.textContent = '⏳ ' + (i + 1) + '/' + tickers.length + ' — ' + t + '...';
+    try {
+      const resp = await fetch(svcBase() + '/?ticker=' + encodeURIComponent(t));
+      const d = await resp.json();
+      if (!resp.ok || d.error || d.detail) throw new Error(d.detail || d.error || 'errore');
+      if (!d.spot || !d.options || !d.options.length) throw new Error('dati non utilizzabili');
+      const L = computeLevels(d.options, d.spot);
+      const dc = L.callWall !== null ? (L.callWall / d.spot - 1) * 100 : null, dp = L.putWall !== null ? (L.putWall / d.spot - 1) * 100 : null;
+      const near = Math.min(dc !== null ? Math.abs(dc) : 99, dp !== null ? Math.abs(dp) : 99);
+      rows.push({ t: t, spot: d.spot, L: L, dc: dc, dp: dp, near: near });
+    } catch (e) { rows.push({ t: t, err: e.message, near: 999 }); }
+    renderWatch(rows);
+  }
+  st.textContent = '✅ Aggiornato ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) + ' · spot stimato dalla parità put-call';
+}
+
+function renderWatch(rows) {
+  const s = rows.slice().sort((a, b) => a.near - b.near);
+  const fp = v => v === null ? 'n/d' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  document.getElementById('wlResult').innerHTML = '<table><tr><th>Ticker</th><th>Spot</th><th>Call Wall</th><th>Put Wall</th><th>Regime</th></tr>' +
+    s.map(r => r.err ?
+      '<tr><td>' + chEsc(r.t) + '</td><td colspan="4" style="text-align:left;color:var(--red);">' + chEsc(r.err) + '</td></tr>' :
+      '<tr onclick="openFromWatch(\'' + r.t + '\')" style="cursor:pointer;"><td><b>' + r.t + '</b></td><td>' + r.spot.toFixed(2) + '</td>' +
+      '<td>' + (r.L.callWall !== null ? r.L.callWall : 'n/d') + '<br><span style="font-size:10px;color:var(--muted);">' + fp(r.dc) + '</span></td>' +
+      '<td>' + (r.L.putWall !== null ? r.L.putWall : 'n/d') + '<br><span style="font-size:10px;color:var(--muted);">' + fp(r.dp) + '</span></td>' +
+      '<td class="regime ' + (r.L.netGex > 0 ? 'pos' : 'neg') + '">' + (r.L.netGex > 0 ? 'stabile' : 'volatile') + '</td></tr>').join('') + '</table>' +
+    '<div class="hint">Ordinati dal più vicino a un muro. Tocca una riga per aprire il calcolo completo.</div>';
+}
+
+function openFromWatch(t) { document.getElementById('autoTicker').value = t; fetchAuto(); }
+
+// ---------------------------------------------------------------------------
+// Importazione option chain da screenshot Barchart
+// ---------------------------------------------------------------------------
+let bcImgs = [];
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('bcFile').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files); e.target.value = '';
+    for (const f of files) {
+      if (bcImgs.length >= 8) break;
+      try { bcImgs.push(await chShrink(f)); } catch (err) { alert('Impossibile leggere un\'immagine'); }
+    }
+    document.getElementById('bcFiles').textContent = bcImgs.length ? bcImgs.length + ' screenshot pronti (tocca "Leggi screenshot")' : '';
+    document.getElementById('bcGo').disabled = !bcImgs.length;
+  });
+});
+
+async function parseBarchart() {
+  const st = document.getElementById('bcStatus'), btn = document.getElementById('bcGo'), errEl = document.getElementById('error');
+  errEl.style.display = 'none'; btn.disabled = true;
+  st.textContent = '⏳ Leggo la tabella (può richiedere qualche secondo; il servizio Render gratuito può impiegare fino a un minuto a svegliarsi)...';
+  try {
+    const exp = document.getElementById('bcExp').value.trim();
+    const resp = await fetch(svcBase() + '/parse-options', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiration: exp || null, images: bcImgs.map(d => ({ tf: 'tab', data: d.split(',')[1] })) }) });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.detail || ('HTTP ' + resp.status));
+    const ta = document.getElementById('csv');
+    ta.value = (document.getElementById('bcAppend').checked && ta.value.trim()) ? ta.value.trim() + '\n' + d.csv : d.csv;
+    if (d.spot) document.getElementById('spot').value = d.spot;
+    const t = document.getElementById('autoTicker').value.trim(); if (t && !document.getElementById('ticker').value) document.getElementById('ticker').value = t.toUpperCase();
+    let msg = '✅ Lette ' + d.rows_count + ' righe (' + d.calls + ' call, ' + d.puts + ' put)' + (d.expiration ? ' · scadenza ' + d.expiration + ' (' + d.dte + ' giorni)' : '') +
+      (d.spot ? ' · spot ' + d.spot : ' · spot non letto: inseriscilo a mano') + '. Controlla i dati qui sotto, poi premi Calcola.';
+    st.innerHTML = chEsc(msg) + (d.warnings.length ? '<div class="warning">⚠️ ' + d.warnings.map(chEsc).join('<br><br>') + '</div>' : '') +
+      '<div class="hint">L\'Open Interest di Barchart si aggiorna una volta al giorno (sera): durante la giornata cambiano volumi, prezzi e IV.</div>';
+    bcImgs = []; document.getElementById('bcFiles').textContent = '';
+  } catch (e) {
+    st.textContent = '';
+    errEl.textContent = 'Errore lettura screenshot: ' + e.message; errEl.style.display = 'block';
+  }
+  btn.disabled = !bcImgs.length;
+}
+
+</script>
+</body>
+</html>
