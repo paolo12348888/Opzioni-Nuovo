@@ -97,6 +97,7 @@
   <div id="tab-charts" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('charts')">Grafici</div>
   <div id="tab-journal" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('journal')">Diario</div>
   <div id="tab-watch" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('watch')">Watchlist</div>
+  <div id="tab-chain" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('chain')">Chain</div>
 </div>
 
 <div id="panel-manual">
@@ -217,6 +218,31 @@
   <div id="wlResult"></div>
 </div>
 
+<div id="panel-chain" style="display:none;">
+  <div class="hint" style="margin-top:0;">Option chain della scadenza scelta, costruita dai dati già caricati (Manuale/Automatico/screenshot Barchart). Calcola prima il GEX.</div>
+  <div style="display:flex;gap:8px;margin:8px 0;">
+    <select id="chainExp" onchange="renderChain()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);"></select>
+    <select id="chainWidth" onchange="renderChain()" style="flex:1;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);">
+      <option value="8">±8 strike</option><option value="15" selected>±15 strike</option><option value="0">Tutti</option>
+    </select>
+  </div>
+  <div id="chainStats"></div>
+  <div id="chainBody" style="overflow-x:auto;"></div>
+  <details class="card" style="margin-top:12px;">
+    <summary style="cursor:pointer;color:var(--accent);font-weight:600;">ℹ️ Come si legge la chain</summary>
+    <ul class="notes" style="margin-top:10px;">
+      <li><b>Calls a sinistra, Puts a destra, Strike al centro.</b> La riga "SPOT" divide gli strike sotto e sopra il prezzo attuale.</li>
+      <li><b>Zone azzurre = in-the-money</b> (call con strike sotto lo spot, put con strike sopra): hanno già valore intrinseco.</li>
+      <li><b>Δ (delta)</b> è circa la probabilità di finire in-the-money a scadenza: 0,50 = 50%. Più è vicino a 1 (call) o -1 (put) più l'opzione si muove come il titolo.</li>
+      <li><b>IV</b> è la volatilità implicita: quanto il mercato prezza di muoversi. IV alta = opzioni care. Se l'IV delle put è più alta di quella delle call (skew), il mercato si sta coprendo al ribasso.</li>
+      <li><b>OI vs Vol.</b> L'OI è la posizione aperta (aggiornata una volta al giorno), il Volume è l'attività di oggi. Volume molto sopra l'OI = si stanno aprendo nuove posizioni (o chiudendo vecchie).</li>
+      <li><b>🧱</b> segna lo strike con più OI della scadenza: lì si concentrano i muri (Call Wall sopra, Put Wall sotto).</li>
+      <li><b>P/C ratio</b> sopra 1 = più put che call (cautela o coperture); sotto 0,7 = prevalgono le call. <b>Max Pain</b> è lo strike dove chi ha comprato opzioni perde di più: il prezzo tende a gravitarvi vicino verso la scadenza.</li>
+      <li><b>IV ATM e Expected Move</b>: l'IV delle opzioni at-the-money dice il movimento atteso (1σ) entro la scadenza. Qui non ci sono Bid/Ask separati: la colonna Mid usa il Mid (o l'ultimo prezzo) se l'hai inserito.</li>
+    </ul>
+  </details>
+</div>
+
 <div id="error"></div>
 <div id="result"></div>
 
@@ -237,7 +263,7 @@ window.onerror = function (msg, url, line) {
 };
 
 function switchTab(name) {
-  ['manual', 'auto', 'charts', 'journal', 'watch'].forEach(t => {
+  ['manual', 'auto', 'charts', 'journal', 'watch', 'chain'].forEach(t => {
     const tab = document.getElementById('tab-' + t);
     tab.style.background = t === name ? 'var(--accent)' : 'var(--card)';
     tab.style.color = t === name ? '#fff' : 'var(--text)';
@@ -245,6 +271,7 @@ function switchTab(name) {
   });
   if (name === 'charts') { refreshGexInfo(); if (document.getElementById('chNq').value === '') loadNq(); }
   if (name === 'journal') { renderJournal(); verifyAll(false); }
+  if (name === 'chain') renderChain();
   if (name === 'watch') { const w = localStorage.getItem('gexWatch'); if (w) document.getElementById('wlTickers').value = w; else if (!document.getElementById('wlTickers').value) document.getElementById('wlTickers').value = 'AMZN,GOOGL,NVDA,AAPL,MSFT'; }
 }
 
@@ -811,7 +838,12 @@ function calcola() {
     const chartResult = renderStrikeProfileChart(strikeProfile, spot, flip);
     const dexHtml = renderDexSection(options, spot, flip, chartResult.callWall, chartResult.putWall);
 
+    const emList = computeExpectedMoves(options, spot);
+    const emHtml = renderExpectedMoves(emList, spot, chartResult.callWall, chartResult.putWall, maxPain);
+    window.lastOptions = options;
+
     window.lastResult = {
+      em: emList.length ? { dte: emList[0].dte, iv: emList[0].iv, move: emList[0].move, pct: emList[0].pct, low: emList[0].low, high: emList[0].high } : null,
       ticker: ticker.toUpperCase(),
       spot: spot,
       netGex: netGex,
@@ -823,6 +855,7 @@ function calcola() {
 
     resEl.innerHTML = `
       ${chartResult.html}
+      ${emHtml}
       <button class="btn2" style="width:100%;margin-top:12px;" onclick="copyLevels()">📋 Copia livelli per Investitor10</button>
       ${dexHtml}
       <div class="card">
@@ -999,6 +1032,11 @@ function lwDrawLevels() {
     if (price === null || price === undefined || !isFinite(p)) return;
     lwLines.push(lwSeries.createPriceLine({ price: p, color: color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: title }));
   });
+  if (g.em) {
+    [['−1σ', g.em.low], ['+1σ', g.em.high]].forEach(([title, price]) => {
+      lwLines.push(lwSeries.createPriceLine({ price: Number(price), color: '#58a6ff', lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: title }));
+    });
+  }
   return lwLines.length > 0;
 }
 
@@ -1096,6 +1134,7 @@ function copyLevels() {
   if (!g) { alert('Calcola prima il GEX'); return; }
   const f = v => (v === null || v === undefined || !isFinite(Number(v))) ? 'n/d' : (Math.round(Number(v) * 100) / 100);
   const txt = g.ticker + '\nCall Wall: ' + f(g.callWall) + '\nPut Wall: ' + f(g.putWall) + '\nZero Gamma: ' + f(g.zeroGamma) + '\nMax Pain: ' + f(g.maxPain) +
+    (g.em ? '\nExpected Move 1σ (' + g.em.dte + 'g): ±' + f(g.em.move) + ' (±' + f(g.em.pct) + '%) → ' + f(g.em.low) + ' – ' + f(g.em.high) : '') +
     '\n\nCSV (ticker,callWall,putWall,zeroGamma,maxPain)\n' + [g.ticker, f(g.callWall), f(g.putWall), f(g.zeroGamma), f(g.maxPain)].join(',');
   const done = () => alert('Livelli copiati negli appunti');
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(() => prompt('Copia i livelli:', txt));
@@ -1291,6 +1330,114 @@ async function parseBarchart() {
     errEl.textContent = 'Errore lettura screenshot: ' + e.message; errEl.style.display = 'block';
   }
   btn.disabled = !bcImgs.length;
+}
+
+// ---------------------------------------------------------------------------
+// Expected Move / Implied Move / range 1σ (dall'IV delle opzioni at-the-money)
+// ---------------------------------------------------------------------------
+function computeExpectedMoves(options, spot) {
+  const g = groupByExpiry(options), out = [];
+  Object.keys(g).map(Number).sort((a, b) => a - b).forEach(dte => {
+    const opts = g[dte].filter(o => o.implied_vol > 0 && isFinite(o.strike));
+    if (!opts.length) return;
+    const strikes = [...new Set(opts.map(o => o.strike))];
+    const atm = strikes.reduce((b, k) => Math.abs(k - spot) < Math.abs(b - spot) ? k : b, strikes[0]);
+    if (Math.abs(atm - spot) / spot > 0.03) return;   // nessuno strike vicino allo spot: stima inaffidabile
+    const c = opts.find(o => o.strike === atm && o.option_type === 'call'), p = opts.find(o => o.strike === atm && o.option_type === 'put');
+    const ivs = [c, p].filter(Boolean).map(o => o.implied_vol);
+    const iv = ivs.reduce((a, b) => a + b, 0) / ivs.length;
+    const move = spot * iv * Math.sqrt(Math.max(dte, 1) / 365);
+    const px = o => (o && ((o.mid > 0) ? o.mid : (o.last > 0 ? o.last : null)));
+    const straddle = (px(c) !== null && px(p) !== null) ? px(c) + px(p) : null;
+    out.push({ dte: dte, iv: iv, atm: atm, move: move, pct: move / spot * 100, low: spot - move, high: spot + move, low2: spot - 2 * move, high2: spot + 2 * move, straddle: straddle });
+  });
+  return out.slice(0, 6);
+}
+
+function renderRangeBar(e, spot, cw, pw, mp) {
+  const pts = [e.low2, e.high2, cw, pw, mp].filter(v => v !== null && v !== undefined && isFinite(v));
+  const lo = Math.min(...pts), hi = Math.max(...pts), pad = (hi - lo) * 0.05, a = lo - pad, b = hi + pad;
+  const x = v => Math.max(1, Math.min(99, (v - a) / (b - a) * 100));
+  const mk = (v, color, label, row) => (v === null || v === undefined || !isFinite(v)) ? '' :
+    '<div style="position:absolute;left:' + x(v) + '%;top:' + (row === 'top' ? 14 : 46) + 'px;height:' + (row === 'top' ? 32 : 30) + 'px;border-left:2px dashed ' + color + ';"></div>' +
+    '<div style="position:absolute;left:' + x(v) + '%;top:' + (row === 'top' ? 0 : 74) + 'px;transform:translateX(-50%);font-size:10px;color:' + color + ';white-space:nowrap;">' + label + '</div>';
+  return '<div style="position:relative;height:92px;margin:6px 4px 4px;">' +
+    '<div style="position:absolute;left:' + x(e.low2) + '%;width:' + (x(e.high2) - x(e.low2)) + '%;top:42px;height:14px;border-radius:7px;background:rgba(224,169,59,0.45);"></div>' +
+    '<div style="position:absolute;left:' + x(e.low) + '%;width:' + (x(e.high) - x(e.low)) + '%;top:42px;height:14px;border-radius:7px;background:rgba(8,153,129,0.75);"></div>' +
+    mk(spot, '#e6edf3', 'Spot ' + spot, 'top') + mk(mp, '#a371f7', 'Max Pain ' + mp, 'top') +
+    mk(cw, '#089981', 'Call Wall ' + cw, 'bottom') + mk(pw, '#f23645', 'Put Wall ' + pw, 'bottom') + '</div>';
+}
+
+function renderExpectedMoves(list, spot, cw, pw, mp) {
+  if (!list.length) return '<div class="card"><div class="section-title" style="margin-top:0;">Expected Move</div><div class="hint">Non calcolabile: servono opzioni con IV vicine allo spot (entro il 3%).</div></div>';
+  const e = list[0], f = v => Number(v).toFixed(2);
+  const dateOf = d => new Date(Date.now() + d * 86400000).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+  const rows = list.map(r => '<tr><td>' + r.dte + 'g<br><span style="font-size:10px;color:var(--muted);">' + dateOf(r.dte) + '</span></td><td>' + (r.iv * 100).toFixed(1) + '%</td>' +
+    '<td>±' + f(r.move) + '<br><span style="font-size:10px;color:var(--muted);">±' + r.pct.toFixed(2) + '%</span></td>' +
+    '<td>' + f(r.low) + '–' + f(r.high) + '</td><td>' + (r.straddle !== null ? f(r.straddle) : 'n/d') + '</td></tr>').join('');
+  return '<div class="card"><div class="section-title" style="margin-top:0;">Expected Move · Implied Move · Range 1σ</div>' +
+    '<div class="row"><span>Scadenza più vicina (' + e.dte + ' giorni)</span><span class="regime">±' + f(e.move) + ' (±' + e.pct.toFixed(2) + '%)</span></div>' +
+    '<div class="row"><span>Range 1σ</span><span>' + f(e.low) + ' – ' + f(e.high) + '</span></div>' +
+    '<div class="row"><span>Range 2σ</span><span>' + f(e.low2) + ' – ' + f(e.high2) + '</span></div>' +
+    '<div class="row"><span>IV ATM (strike ' + e.atm + ')</span><span>' + (e.iv * 100).toFixed(1) + '%</span></div>' +
+    renderRangeBar(e, spot, cw, pw, mp) +
+    '<div class="hint" style="text-align:center;">Verde = range 1σ (≈68%) · Giallo = range 2σ (≈95%)</div>' +
+    '<table style="margin-top:10px;"><tr><th>Scad.</th><th>IV ATM</th><th>Exp. Move</th><th>Range 1σ</th><th>Straddle</th></tr>' + rows + '</table>' +
+    '<div class="hint"><b>Expected Move</b> = quanto il mercato prezza di muoversi entro la scadenza = Spot × IV × √(giorni/365). <b>Implied Move</b> è lo stesso valore in %. <b>Range 1σ</b> = Spot ± Expected Move: per definizione il prezzo ci resta circa il 68% delle volte, ma non è un limite e la probabilità è teorica. Lo <b>straddle</b> ATM (call + put) è una stima alternativa dal prezzo reale delle opzioni, disponibile solo se hai inserito Mid o Last.</div></div>';
+}
+
+// ---------------------------------------------------------------------------
+// Scheda Chain: tabella option chain in stile Sensamarket
+// ---------------------------------------------------------------------------
+function renderChain() {
+  const body = document.getElementById('chainBody'), stats = document.getElementById('chainStats'), sel = document.getElementById('chainExp');
+  const opts = window.lastOptions, res = window.lastResult;
+  if (!opts || !res) { stats.innerHTML = ''; body.innerHTML = '<div class="hint">⚠️ Calcola prima il GEX (scheda Manuale o Automatico).</div>'; return; }
+  const g = groupByExpiry(opts), dtes = Object.keys(g).map(Number).sort((a, b) => a - b), sig = dtes.join(',');
+  if (sel.dataset.sig !== sig) {
+    sel.innerHTML = dtes.map(d => '<option value="' + d + '">' + d + ' giorni · ' + new Date(Date.now() + d * 86400000).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) + '</option>').join('');
+    sel.dataset.sig = sig;
+  }
+  const dte = Number(sel.value), list = g[dte] || [], spot = res.spot, width = Number(document.getElementById('chainWidth').value);
+  const T = Math.max(dte, 1) / 365, num = v => (v === null || v === undefined || isNaN(v)) ? 0 : v;
+  const hasVol = list.some(o => o.volume !== null && o.volume !== undefined && !isNaN(o.volume));
+  const totVol = list.reduce((s, o) => s + num(o.volume), 0);
+  const oiC = list.filter(o => o.option_type === 'call').reduce((s, o) => s + o.open_interest, 0);
+  const oiP = list.filter(o => o.option_type === 'put').reduce((s, o) => s + o.open_interest, 0);
+  const mp = computeMaxPain(list), em = computeExpectedMoves(list, spot)[0];
+  const stat = (k, v) => '<div style="flex:1 0 30%;min-width:96px;"><div class="hint" style="margin:0;">' + k + '</div><div style="font-weight:700;font-size:14px;">' + v + '</div></div>';
+  stats.innerHTML = '<div class="card" style="padding:12px;"><div style="display:flex;flex-wrap:wrap;gap:10px;">' +
+    stat('Vol. totale', hasVol ? fmtBig(totVol) : 'n/d') + stat('OI totale', fmtBig(oiC + oiP)) + stat('P/C (OI)', oiC ? (oiP / oiC).toFixed(2) : 'n/d') +
+    stat('Max Pain', mp !== null ? mp : 'n/d') + stat('IV ATM', em ? (em.iv * 100).toFixed(1) + '%' : 'n/d') + stat('Exp. Move', em ? '±' + em.move.toFixed(2) + ' (' + em.pct.toFixed(2) + '%)' : 'n/d') +
+    '</div></div>';
+
+  const byStrike = {};
+  list.forEach(o => { (byStrike[o.strike] = byStrike[o.strike] || {})[o.option_type] = o; });
+  let strikes = Object.keys(byStrike).map(Number).sort((a, b) => a - b);
+  const idx = strikes.reduce((bi, k, i) => Math.abs(k - spot) < Math.abs(strikes[bi] - spot) ? i : bi, 0);
+  if (width > 0) strikes = strikes.slice(Math.max(0, idx - width), idx + width + 1);
+  const maxC = Math.max(0, ...list.filter(o => o.option_type === 'call').map(o => o.open_interest));
+  const maxP = Math.max(0, ...list.filter(o => o.option_type === 'put').map(o => o.open_interest));
+  const px = o => o ? ((o.mid > 0) ? o.mid.toFixed(2) : (o.last > 0 ? o.last.toFixed(2) : '–')) : '–';
+  const dl = (o, t) => o ? bsDelta(spot, o.strike, T, o.implied_vol, t).toFixed(2) : '–';
+  const iv = o => o ? (o.implied_vol * 100).toFixed(1) : '–';
+  const vol = o => (o && o.volume !== null && o.volume !== undefined && !isNaN(o.volume)) ? fmtOi(o.volume) : '–';
+  const oi = (o, mx) => o ? fmtOi(o.open_interest) + (mx > 0 && o.open_interest === mx ? ' 🧱' : '') : '–';
+  const itm = 'background:rgba(88,166,255,0.09);';
+  let rows = '', spotDone = false;
+  strikes.forEach(k => {
+    if (!spotDone && k > spot) {
+      rows += '<tr><td colspan="11" style="background:rgba(88,166,255,0.22);color:#fff;font-weight:700;text-align:center;">SPOT ' + spot + '</td></tr>'; spotDone = true;
+    }
+    const c = byStrike[k].call, p = byStrike[k].put, cs = k < spot ? itm : '', ps = k > spot ? itm : '';
+    rows += '<tr><td style="' + cs + '">' + vol(c) + '</td><td style="' + cs + '">' + oi(c, maxC) + '</td><td style="' + cs + '">' + iv(c) + '</td><td style="' + cs + '">' + dl(c, 'call') + '</td><td style="' + cs + '">' + px(c) + '</td>' +
+      '<td style="font-weight:700;background:var(--card);">' + k + '</td>' +
+      '<td style="' + ps + '">' + px(p) + '</td><td style="' + ps + '">' + dl(p, 'put') + '</td><td style="' + ps + '">' + iv(p) + '</td><td style="' + ps + '">' + oi(p, maxP) + '</td><td style="' + ps + '">' + vol(p) + '</td></tr>';
+  });
+  if (!spotDone) rows += '<tr><td colspan="11" style="background:rgba(88,166,255,0.22);color:#fff;font-weight:700;text-align:center;">SPOT ' + spot + '</td></tr>';
+  body.innerHTML = '<table style="font-size:11px;min-width:560px;"><tr><th colspan="5" style="color:var(--green);">CALLS</th><th>STRIKE</th><th colspan="5" style="color:var(--red);">PUTS</th></tr>' +
+    '<tr><th>Vol</th><th>OI</th><th>IV%</th><th>Δ</th><th>Mid</th><th></th><th>Mid</th><th>Δ</th><th>IV%</th><th>OI</th><th>Vol</th></tr>' + rows + '</table>' +
+    '<div class="hint">Δ calcolato con Black-Scholes dai dati inseriti. 🧱 = strike con più OI della scadenza. Mid = Mid (o ultimo prezzo) se inserito.</div>';
 }
 
 </script>

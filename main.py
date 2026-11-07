@@ -425,6 +425,10 @@ def build_prompt(req: AnalyzeRequest, nq=None, conf=None) -> str:
             f"Put Wall {g.get('putWall')}, Zero Gamma {g.get('zeroGamma')}, Max Pain {g.get('maxPain')}, "
             f"Net GEX {g.get('netGex')} ({regime})."
         )
+        em = g.get("em")
+        if em:
+            gex_txt += (f" Expected move 1 sigma a {em.get('dte')} giorni: +/-{em.get('move'):.2f} ({em.get('pct'):.2f}%), "
+                        f"range {em.get('low'):.2f}-{em.get('high'):.2f} (IV ATM {em.get('iv', 0) * 100:.1f}%).")
     else:
         gex_txt = "Livelli GEX non disponibili: analizza solo la price action e dichiaralo tra le avvertenze."
 
