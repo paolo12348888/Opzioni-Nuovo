@@ -69,6 +69,7 @@
   .btn2 { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-size: 13px; font-weight: 600; }
   .pill { display:inline-block; padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; color:#0d1117; }
   .pill.ok { background: var(--green); } .pill.ko { background: var(--red); } .pill.mid { background: #e0a93b; } .pill.wait { background: var(--muted); }
+  .icsel { width:100%; padding:11px; border-radius:10px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:15px; }
   .section-title { font-weight: 700; margin-top: 14px; margin-bottom: 6px; }
   .chart-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
   .chart-stat {
@@ -98,6 +99,7 @@
   <div id="tab-journal" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('journal')">Diario</div>
   <div id="tab-watch" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('watch')">Watchlist</div>
   <div id="tab-chain" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('chain')">Chain</div>
+  <div id="tab-condor" class="tab" style="flex:1;padding:10px;text-align:center;border-radius:8px;background:var(--card);border:1px solid var(--border);cursor:pointer;font-size:14px;" onclick="switchTab('condor')">Condor</div>
 </div>
 
 <div id="panel-manual">
@@ -243,6 +245,24 @@
   </details>
 </div>
 
+<div id="panel-condor" style="display:none;">
+  <div class="hint" style="margin-top:0;">Iron Condor sull'asset caricato: vendi una put e una call fuori dal prezzo e compri due "ali" più lontane per limitare il rischio. Guadagni se il prezzo resta tra i due breakeven fino alla scadenza. Calcola prima il GEX.</div>
+  <label>Scadenza</label>
+  <select id="icExp" onchange="icFill('sigma')" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;"></select>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+    <div><label>Long Put (compri)</label><select id="icLP" onchange="renderCondor()" class="icsel"></select></div>
+    <div><label>Short Put (vendi)</label><select id="icSP" onchange="renderCondor()" class="icsel"></select></div>
+    <div><label>Short Call (vendi)</label><select id="icSC" onchange="renderCondor()" class="icsel"></select></div>
+    <div><label>Long Call (compri)</label><select id="icLC" onchange="renderCondor()" class="icsel"></select></div>
+  </div>
+  <div style="display:flex;gap:8px;margin:12px 0;">
+    <button class="btn2" style="flex:1;" onclick="icFill('sigma')">σ Expected Move</button>
+    <button class="btn2" style="flex:1;" onclick="icFill('walls')">🧱 Muri GEX</button>
+  </div>
+  <div class="hint" style="margin-top:0;">Preset: "σ" mette le vendite ai bordi del range 1σ, "Muri" sulla Put Wall e Call Wall; le ali sono 2 strike più lontane. Puoi cambiare ogni strike a mano.</div>
+  <div id="icOut"></div>
+</div>
+
 <div id="error"></div>
 <div id="result"></div>
 
@@ -263,7 +283,7 @@ window.onerror = function (msg, url, line) {
 };
 
 function switchTab(name) {
-  ['manual', 'auto', 'charts', 'journal', 'watch', 'chain'].forEach(t => {
+  ['manual', 'auto', 'charts', 'journal', 'watch', 'chain', 'condor'].forEach(t => {
     const tab = document.getElementById('tab-' + t);
     tab.style.background = t === name ? 'var(--accent)' : 'var(--card)';
     tab.style.color = t === name ? '#fff' : 'var(--text)';
@@ -272,6 +292,7 @@ function switchTab(name) {
   if (name === 'charts') { refreshGexInfo(); if (document.getElementById('chNq').value === '') loadNq(); }
   if (name === 'journal') { renderJournal(); verifyAll(false); }
   if (name === 'chain') renderChain();
+  if (name === 'condor') icInit();
   if (name === 'watch') { const w = localStorage.getItem('gexWatch'); if (w) document.getElementById('wlTickers').value = w; else if (!document.getElementById('wlTickers').value) document.getElementById('wlTickers').value = 'AMZN,GOOGL,NVDA,AAPL,MSFT'; }
 }
 
@@ -1438,6 +1459,119 @@ function renderChain() {
   body.innerHTML = '<table style="font-size:11px;min-width:560px;"><tr><th colspan="5" style="color:var(--green);">CALLS</th><th>STRIKE</th><th colspan="5" style="color:var(--red);">PUTS</th></tr>' +
     '<tr><th>Vol</th><th>OI</th><th>IV%</th><th>Δ</th><th>Mid</th><th></th><th>Mid</th><th>Δ</th><th>IV%</th><th>OI</th><th>Vol</th></tr>' + rows + '</table>' +
     '<div class="hint">Δ calcolato con Black-Scholes dai dati inseriti. 🧱 = strike con più OI della scadenza. Mid = Mid (o ultimo prezzo) se inserito.</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Scheda Condor: Iron Condor con grafico P/L a scadenza (stile OptionStrat)
+// ---------------------------------------------------------------------------
+function bsPrice(spot, strike, tYears, iv, type) {
+  if (tYears <= 0 || iv <= 0) return Math.max(0, type === 'call' ? spot - strike : strike - spot);
+  const sq = iv * Math.sqrt(tYears), d1 = (Math.log(spot / strike) + (RISK_FREE_RATE + iv * iv / 2) * tYears) / sq, d2 = d1 - sq, disc = Math.exp(-RISK_FREE_RATE * tYears);
+  return type === 'call' ? spot * normCdf(d1) - strike * disc * normCdf(d2) : strike * disc * normCdf(-d2) - spot * normCdf(-d1);
+}
+
+function icLists() {
+  const g = groupByExpiry(window.lastOptions), dte = Number(document.getElementById('icExp').value), list = g[dte] || [];
+  const puts = list.filter(o => o.option_type === 'put').map(o => o.strike), calls = list.filter(o => o.option_type === 'call').map(o => o.strike);
+  const u = a => [...new Set(a)].sort((x, y) => x - y);
+  return { dte: dte, list: list, puts: u(puts), calls: u(calls) };
+}
+
+function icInit() {
+  const out = document.getElementById('icOut'), sel = document.getElementById('icExp');
+  if (!window.lastOptions || !window.lastResult) { out.innerHTML = '<div class="hint">⚠️ Calcola prima il GEX (scheda Manuale o Automatico).</div>'; return; }
+  const dtes = Object.keys(groupByExpiry(window.lastOptions)).map(Number).sort((a, b) => a - b), sig = dtes.join(',') + '|' + window.lastResult.ticker + '|' + window.lastResult.spot;
+  if (sel.dataset.sig !== sig) {
+    sel.innerHTML = dtes.map(d => '<option value="' + d + '">' + d + ' giorni · ' + new Date(Date.now() + d * 86400000).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) + '</option>').join('');
+    sel.dataset.sig = sig; icFill('sigma');
+  } else renderCondor();
+}
+
+function icFill(preset) {
+  const res = window.lastResult; if (!res || !window.lastOptions) return;
+  const L = icLists(), spot = res.spot;
+  if (L.puts.length < 3 || L.calls.length < 3) { document.getElementById('icOut').innerHTML = '<div class="hint">⚠️ Questa scadenza ha troppo pochi strike per costruire un Iron Condor.</div>'; return; }
+  const em = computeExpectedMoves(L.list, spot)[0];
+  let tp, tc;
+  if (preset === 'walls') { tp = (res.putWall !== null && res.putWall < spot) ? res.putWall : spot * 0.97; tc = (res.callWall !== null && res.callWall > spot) ? res.callWall : spot * 1.03; }
+  else { tp = em ? em.low : spot * 0.95; tc = em ? em.high : spot * 1.05; }
+  let ip = L.puts.length - 1; while (ip > 0 && L.puts[ip] > tp) ip--;                 // short put: strike <= target
+  let ic = 0; while (ic < L.calls.length - 1 && L.calls[ic] < tc) ic++;               // short call: strike >= target
+  ip = Math.max(2, ip); ic = Math.min(L.calls.length - 3, ic);
+  const fill = (id, arr, i) => { const s = document.getElementById(id); s.innerHTML = arr.map(k => '<option value="' + k + '">' + k + '</option>').join(''); s.value = String(arr[Math.max(0, Math.min(arr.length - 1, i))]); };
+  fill('icLP', L.puts, ip - 2); fill('icSP', L.puts, ip); fill('icSC', L.calls, ic); fill('icLC', L.calls, ic + 2);
+  renderCondor();
+}
+
+function renderCondor() {
+  const out = document.getElementById('icOut'), res = window.lastResult; if (!res || !window.lastOptions) return;
+  const L = icLists(), spot = res.spot, T = Math.max(L.dte, 1) / 365;
+  const k = id => parseFloat(document.getElementById(id).value);
+  const LP = k('icLP'), SP = k('icSP'), SC = k('icSC'), LC = k('icLC');
+  if (!(LP < SP && SP < SC && SC < LC)) { out.innerHTML = '<div class="warning">⚠️ Ordine strike non valido: serve Long Put &lt; Short Put &lt; Short Call &lt; Long Call.</div>'; return; }
+  const find = (s, t) => L.list.find(o => o.strike === s && o.option_type === t);
+  const em = computeExpectedMoves(L.list, spot)[0];
+  const legPrice = (s, t) => {
+    const o = find(s, t); if (!o) return { p: 0, src: 'n/d' };
+    if (o.mid > 0) return { p: o.mid, src: 'mid' }; if (o.last > 0) return { p: o.last, src: 'ultimo' };
+    return { p: bsPrice(spot, s, T, o.implied_vol, t), src: 'teorico' };
+  };
+  const legs = [['Long Put', LP, 'put', -1], ['Short Put', SP, 'put', 1], ['Short Call', SC, 'call', 1], ['Long Call', LC, 'call', -1]].map(x => Object.assign({ name: x[0], strike: x[1], type: x[2], sign: x[3] }, legPrice(x[1], x[2])));
+  const credit = legs.reduce((s, l) => s + l.sign * l.p, 0);
+  const wing = Math.max(SP - LP, LC - SC), maxProfit = credit * 100, maxLoss = (wing - credit) * 100;
+  const beL = SP - credit, beH = SC + credit;
+  const iv = em ? em.iv : (find(SP, 'put').implied_vol + find(SC, 'call').implied_vol) / 2, sq = iv * Math.sqrt(T);
+  const pBelow = K => normCdf((Math.log(K / spot) - (RISK_FREE_RATE - iv * iv / 2) * T) / sq);
+  const pop = Math.max(0, Math.min(1, pBelow(beH) - pBelow(beL)));
+  const pl = S => (credit - Math.max(SP - S, 0) + Math.max(LP - S, 0) - Math.max(S - SC, 0) + Math.max(S - LC, 0)) * 100;
+
+  // ---- grafico SVG ----
+  const W = 360, H = 270, ML = 46, MR = 10, MT = 54, MB = 34, pw = W - ML - MR, ph = H - MT - MB;
+  const pad = (LC - LP) * 0.3, xmin = Math.min(LP, spot - (em ? em.move : 0), beL) - pad, xmax = Math.max(LC, spot + (em ? em.move : 0), beH) + pad;
+  const ymax = Math.max(maxProfit, 1) * 1.45, ymin = -Math.max(maxLoss, 1) * 1.15;
+  const X = v => ML + (v - xmin) / (xmax - xmin) * pw, Y = v => MT + (ymax - v) / (ymax - ymin) * ph, y0 = Y(0);
+  const pts = [xmin, LP, SP, SC, LC, xmax], line = pts.map((s, i) => (i ? 'L' : 'M') + X(s).toFixed(1) + ' ' + Y(pl(s)).toFixed(1)).join(' ');
+  const area = line + ' L' + X(xmax).toFixed(1) + ' ' + y0.toFixed(1) + ' L' + X(xmin).toFixed(1) + ' ' + y0.toFixed(1) + ' Z';
+  const f0 = v => (v < 0 ? '−' : '') + '$' + Math.abs(Math.round(v));
+  const vline = (v, color, top, lab1, anchor) => '<line x1="' + X(v).toFixed(1) + '" x2="' + X(v).toFixed(1) + '" y1="' + MT + '" y2="' + (H - MB) + '" stroke="' + color + '" stroke-width="1" stroke-dasharray="4 3"/>' +
+    '<text x="' + (X(v) + (anchor === 'end' ? -3 : anchor === 'start' ? 3 : 0)).toFixed(1) + '" y="' + top + '" text-anchor="' + anchor + '" font-size="9" font-weight="700" fill="' + color + '">' + lab1 + '</text>';
+  const ticks = [0, 1, 2, 3, 4].map(i => xmin + (xmax - xmin) * i / 4);
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;background:#0d1117;border:1px solid var(--border);border-radius:10px;">' +
+    '<defs><clipPath id="icUp"><rect x="' + ML + '" y="' + MT + '" width="' + pw + '" height="' + Math.max(0, y0 - MT).toFixed(1) + '"/></clipPath><clipPath id="icDn"><rect x="' + ML + '" y="' + y0.toFixed(1) + '" width="' + pw + '" height="' + Math.max(0, H - MB - y0).toFixed(1) + '"/></clipPath>' +
+    '<marker id="icArr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto-start-reverse"><path d="M0 0 L6 3 L0 6 z" fill="#a371f7"/></marker></defs>' +
+    '<path d="' + area + '" fill="rgba(8,153,129,0.5)" clip-path="url(#icUp)"/><path d="' + area + '" fill="rgba(242,54,69,0.32)" clip-path="url(#icDn)"/>' +
+    '<line x1="' + ML + '" x2="' + (W - MR) + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#8b949e" stroke-width="1"/>' +
+    '<path d="' + line + '" fill="none" stroke="#e6edf3" stroke-width="1.6"/>' +
+    vline(LP, '#58a6ff', 10, 'Long Put ' + LP, 'middle') + vline(SP, '#3fb950', 22, 'Short Put ' + SP, 'end') + vline(SC, '#3fb950', 22, 'Short Call ' + SC, 'start') + vline(LC, '#58a6ff', 10, 'Long Call ' + LC, 'middle') +
+    '<line x1="' + X(spot).toFixed(1) + '" x2="' + X(spot).toFixed(1) + '" y1="' + (MT - 8) + '" y2="' + (H - MB) + '" stroke="#fff" stroke-width="1.4" stroke-dasharray="2 2"/>' +
+    '<rect x="' + (X(spot) - 19).toFixed(1) + '" y="' + (MT - 22) + '" width="38" height="13" rx="3" fill="#fff"/><text x="' + X(spot).toFixed(1) + '" y="' + (MT - 12) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#0d1117">' + spot + '</text>' +
+    [[beL, 'end', -5], [beH, 'start', 5]].map(a => '<circle cx="' + X(a[0]).toFixed(1) + '" cy="' + y0.toFixed(1) + '" r="3" fill="#58a6ff"/><text x="' + (X(a[0]) + a[2]).toFixed(1) + '" y="' + (y0 + 14).toFixed(1) + '" text-anchor="' + a[1] + '" font-size="8.5" fill="#79c0ff">BE ' + a[0].toFixed(2) + '</text>').join('') +
+    '<text x="' + (ML + 4) + '" y="' + (Y(maxProfit) - 4).toFixed(1) + '" font-size="9" font-weight="700" fill="#3fb950">Max profit ' + f0(maxProfit) + '</text>' +
+    '<text x="' + (W - MR - 4) + '" y="' + (Y(-maxLoss) - 4).toFixed(1) + '" text-anchor="end" font-size="9" font-weight="700" fill="#f85149">Max loss ' + f0(-maxLoss) + '</text>';
+  if (em) {
+    const ya = Y(-maxLoss * 0.55), xa = Math.max(ML + 2, X(spot - em.move)), xb = Math.min(W - MR - 2, X(spot + em.move));
+    svg += '<line x1="' + xa.toFixed(1) + '" x2="' + xb.toFixed(1) + '" y1="' + ya.toFixed(1) + '" y2="' + ya.toFixed(1) + '" stroke="#a371f7" stroke-width="1.4" stroke-dasharray="4 3" marker-start="url(#icArr)" marker-end="url(#icArr)"/>' +
+      '<text x="' + X(spot).toFixed(1) + '" y="' + (ya - 4).toFixed(1) + '" text-anchor="middle" font-size="9" fill="#c9a8ff">Implied move ±' + em.move.toFixed(2) + '</text>';
+  }
+  svg += ticks.map(t => '<text x="' + X(t).toFixed(1) + '" y="' + (H - 18) + '" text-anchor="middle" font-size="8.5" fill="#8b949e">' + (Math.abs(t) >= 100 ? Math.round(t) : t.toFixed(1)) + '</text>').join('') +
+    [maxProfit, 0, -maxLoss].map(v => '<text x="' + (ML - 4) + '" y="' + (Y(v) + 3).toFixed(1) + '" text-anchor="end" font-size="8.5" fill="#8b949e">' + f0(v) + '</text>').join('') +
+    '<text x="' + (ML + pw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="8.5" fill="#8b949e">Prezzo a scadenza</text></svg>';
+
+  const box = (t, v, c) => '<div style="flex:1 0 45%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;"><div class="hint" style="margin:0;">' + t + '</div><div style="font-size:20px;font-weight:700;color:' + c + ';">' + v + '</div></div>';
+  const rows = legs.map(l => '<tr><td>' + l.name + '</td><td>' + l.strike + '</td><td>' + l.p.toFixed(2) + '<br><span style="font-size:10px;color:var(--muted);">' + l.src + '</span></td><td style="color:' + (l.sign > 0 ? 'var(--green)' : 'var(--red)') + ';">' + (l.sign > 0 ? '+' : '−') + l.p.toFixed(2) + '</td></tr>').join('');
+  const wallNote = (res.putWall !== null && res.callWall !== null) ? '<div class="hint">Muri GEX: Put Wall ' + res.putWall + ' · Call Wall ' + res.callWall + '. Short Put ' + (SP <= res.putWall ? 'sotto o sul' : 'sopra il') + ' Put Wall, Short Call ' + (SC >= res.callWall ? 'sopra o sul' : 'sotto il') + ' Call Wall' +
+    (em ? '. Range 1σ: ' + em.low.toFixed(2) + '–' + em.high.toFixed(2) : '') + '.</div>' : '';
+  const warn = (legs.some(l => l.src === 'teorico') ? '<div class="warning">⚠️ Per alcune gambe manca Mid/Last: il prezzo è teorico (Black-Scholes con la loro IV). Inserisci Mid o Last per un risultato più realistico.</div>' : '') +
+    (credit <= 0 ? '<div class="warning">⚠️ Credito netto non positivo: con questi strike la struttura non è un credito.</div>' : '');
+  out.innerHTML = '<div class="section-title">' + chEsc(res.ticker) + ' Iron Condor · ' + L.dte + ' giorni</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' + box('CREDITO NETTO', '$' + credit.toFixed(2) + '<span style="font-size:11px;"> /azione</span>', credit > 0 ? 'var(--green)' : 'var(--red)') +
+    box('PERDITA MAX', f0(-maxLoss) + '<span style="font-size:11px;"> /contratto</span>', 'var(--red)') + box('PROFITTO MAX', f0(maxProfit) + '<span style="font-size:11px;"> /contratto</span>', 'var(--green)') +
+    box('PROBABILITÀ DI PROFITTO', (pop * 100).toFixed(0) + '%', 'var(--text)') + '</div>' + svg + warn + wallNote +
+    '<div class="card" style="margin-top:12px;"><div class="section-title" style="margin-top:0;">Riepilogo posizione (per contratto = 100 azioni)</div><table><tr><th>Gamba</th><th>Strike</th><th>Prezzo</th><th>Credito/Debito</th></tr>' + rows +
+    '<tr><td colspan="3"><b>Credito netto</b></td><td><b>' + credit.toFixed(2) + '</b></td></tr></table>' +
+    '<div class="row"><span>Breakeven</span><span>' + beL.toFixed(2) + ' · ' + beH.toFixed(2) + '</span></div>' +
+    '<div class="row"><span>Rischio / rendimento</span><span>1 : ' + (maxLoss > 0 && maxProfit > 0 ? (maxProfit / maxLoss).toFixed(2) : 'n/d') + '</span></div>' +
+    '<div class="hint">La probabilità di profitto è una stima teorica (distribuzione lognormale con IV ATM ' + (iv * 100).toFixed(1) + '%, neutrale al rischio): indica quante volte il prezzo finirebbe tra i due breakeven, non una previsione. Non include commissioni, slippage né esercizio anticipato (le opzioni su azioni USA sono americane). Strumento informativo, non consulenza finanziaria.</div></div>';
 }
 
 </script>
